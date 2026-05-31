@@ -1,8 +1,8 @@
 # DiffLens
 
-A lightweight TypeScript tool built with LangGraph to verify Git diff coordinate integrity and filter LLM line hallucinations.
+A lightweight TypeScript tool built with LangGraph for reviewing Git diffs, with additional verification steps designed to isolate and filter out-of-bounds line hallucinations.
 
-*Note: This project started as an experiment to move beyond single-prompt review scripts and see if a structured pipeline could stop coordinate index failures before showing the final output.*
+*Note: This project started as an experiment to move beyond single-prompt review scripts and see if a structured pipeline can stop broken coordinate references before displaying the final output.*
 
 ---
 
