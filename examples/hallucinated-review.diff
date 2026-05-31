@@ -1,0 +1,9 @@
+diff --git a/src/utils.ts b/src/utils.ts
+index e69de29..b3a4a11 100644
+--- a/src/utils.ts
++++ b/src/utils.ts
+@@ -10,4 +10,4 @@ function processData(data) {
+-  const result = data.map(x => x * 2);
++  const result = data.filter(x => x !== null).map(x => x * 2);
+   return result;
+ }
