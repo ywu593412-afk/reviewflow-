@@ -40,3 +40,8 @@ npm run lint
 
 Distributed under the Apache License 2.0. See LICENSE for more information.
 
+## 🚀 Future Roadmap (Todo)
+- [ ] Optimize token consumption for extra-large Pull Requests.
+- [ ] Integrate local line-mapping cache to enhance Diff accuracy.
+- [ ] Support custom review rules specified by a local config file.
+
