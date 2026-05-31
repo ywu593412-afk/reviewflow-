@@ -1,6 +1,6 @@
 # 🚀 ReviewFlow
 
-An enterprise-grade, autonomous multi-agent code review framework built with TypeScript (ESM) and LangGraph. ReviewFlow seamlessly orchestrates a swarm of specialized AI agents to concurrently audit pull requests, perform structural risk assessment, and automatically inject line-level markdown annotations directly back into GitHub Pull Requests.
+An experimental, LangGraph-powered multi-agent code review prototype (PoC). While currently utilizing a lightweight orchestration layer to parallel-audit pull requests via LLM agents, ReviewFlow is purposefully architected with production-ready patterns, featuring strict schema validation and robust concurrency control.
 
 ---
 
