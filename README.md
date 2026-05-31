@@ -4,6 +4,8 @@ A lightweight TypeScript tool built with LangGraph for reviewing Git diffs, with
 
 *Note: This project started as an experiment to move beyond single-prompt review scripts and see if a structured pipeline can stop broken coordinate references before displaying the final output.*
 
+*Status: Core engine fully functional and verified via automated CI pipeline.*
+
 ---
 
 ## Architecture
