@@ -1,125 +1,132 @@
-import * as fs from "fs";
-import dotenv from "dotenv";
-import { GitHubConnector } from "./github.js";
-import { buildEngineWorkflow } from "./agent.js";
+import { StateGraph, START, END } from "@langchain/langgraph";
+import { Octokit } from "@octokit/rest";
+import { ChatOpenAI } from "@langchain/openai";
+import { z } from "zod";
+import pLimit from "p-limit";
 
-dotenv.config();
-
-interface GitHubWorkflowPayload {
-  repository?: {
-    name: string;
-    owner: {
-      login: string;
-    };
-  };
-  pull_request?: {
-    number: number;
-  };
-}
-
-async function runApplication(): Promise<void> {
-  console.log("=================================================");
-  console.log("       ReviewFlow Agentic Review Initiated       ");
-  console.log("=================================================");
-
-  const githubToken = process.env.GITHUB_TOKEN;
-  const openaiApiKey = process.env.OPENAI_API_KEY;
-
-  if (!githubToken || githubToken.trim() === "") {
-    console.error("Fatal Error: GITHUB_TOKEN is undefined inside running environment.");
-    process.exit(1);
-  }
-
-  if (!openaiApiKey || openaiApiKey.trim() === "") {
-    console.error("Fatal Error: OPENAI_API_KEY is undefined inside running environment.");
-    process.exit(1);
-  }
-
-  let owner = process.env.GITHUB_OWNER || "";
-  let repo = process.env.GITHUB_REPO || "";
-  let pullNumber = parseInt(process.env.GITHUB_PR_NUMBER || "0", 10);
-
-  const eventPath = process.env.GITHUB_EVENT_PATH;
-  if (eventPath && fs.existsSync(eventPath)) {
-    try {
-      console.log(`Parsing GitHub Actions Workflow event path: ${eventPath}`);
-      const rawPayload = fs.readFileSync(eventPath, "utf-8");
-      const payload = JSON.parse(rawPayload) as GitHubWorkflowPayload;
-
-      if (payload.repository) {
-        owner = payload.repository.owner.login;
-        repo = payload.repository.name;
-      }
-
-      if (payload.pull_request) {
-        pullNumber = payload.pull_request.number;
-      }
-    } catch (error) {
-      console.warn(`Could not parse GITHUB_EVENT_PATH payload: ${(error as Error).message}`);
-    }
-  }
-
-  if (!owner ||!repo || isNaN(pullNumber) || pullNumber <= 0) {
-    console.error("Fatal Error: Could not resolve targeting Git Repository details (owner, repo, pullNumber).");
-    console.error(`Resolved properties: owner=${owner}, repo=${repo}, pullNumber=${pullNumber}`);
-    process.exit(1);
-  }
-
-  console.log(`Target Repository: ${owner}/${repo}`);
-  console.log(`Target Pull Request: #${pullNumber}`);
-
-  const connector = new GitHubConnector(githubToken);
-
-  try {
-    console.log("Retrieving PR diff formatted payload...");
-    const rawDiff = await connector.getPullRequestDiff(owner, repo, pullNumber);
-
-    console.log("Compiling file changes & physical line mapping table...");
-    const parsedFiles = connector.parseDiff(rawDiff);
-
-    let diffPayload = "";
-    for (const file of parsedFiles) {
-      diffPayload += `File: ${file.path}\n`;
-      for (const lineObj of file.addedLines) {
-        diffPayload += `Line ${lineObj.lineNum}: ${lineObj.content}\n`;
-      }
-    }
-
-    if (!diffPayload || diffPayload.trim() === "") {
-      console.log("No reviewable added lines identified inside the target changes. Exiting flow with code 0.");
-      process.exit(0);
-    }
-
-    console.log("Instantiating LangGraph Agentic Engine...");
-    const workflow = buildEngineWorkflow();
-
-    const initialState = {
-      owner,
-      repo,
-      pullNumber,
-      diff: diffPayload,
-      styleComments:,
-      securityComments:,
-      logicComments:,
-      finalComments:,
-    };
-
-    console.log("Triggering concurrent audits across style, security, and logic domains...");
-    const result = await workflow.invoke(initialState);
-
-    console.log(`Submitting consolidated recommendations (${result.finalComments.length} items)...`);
-    await connector.postReviewComments(owner, repo, pullNumber, result.finalComments);
-
-    console.log("=================================================");
-    console.log("       ReviewFlow Agentic Review Completed       ");
-    console.log("=================================================");
-  } catch (error) {
-    console.error(`Pipeline execution crash: ${(error as Error).message}`);
-    process.exit(1);
-  }
-}
-
-runApplication().catch((err) => {
-  console.error(`Unhandled process termination: ${(err as Error).message}`);
-  process.exit(1);
+// 1. 使用 Zod 强约束 AI 吐出的评论格式，防止 JSON 解析崩溃
+const CommentSchema = z.object({
+  path: z.string().describe("文件路径"),
+  line: z.number().describe("代码行号"),
+  body: z.string().describe("具体的审查意见，使用 Markdown 格式")
 });
+const ReviewOutputSchema = z.array(CommentSchema);
+
+// 2. 定义多智能体图状态 (Graph State)
+interface ReviewState {
+  owner: string;
+  repo: string;
+  pullNumber: number;
+  commitSha: string; 
+  diffContent: string;
+  styleReview?: string;
+  securityReview?: string;
+  logicReview?: string;
+  commentsToPost: z.infer<typeof ReviewOutputSchema>;
+}
+
+// 初始化大模型与 GitHub 客户端
+const model = new ChatOpenAI({ modelName: "gpt-4o", temperature: 0.1 });
+const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+
+// ==================== 3. 智能体节点定义 ====================
+
+async function styleAgent(state: ReviewState): Promise<Partial<ReviewState>> {
+  const prompt = `You are a Code Style Expert. Review this diff for linting and naming conventions:\n${state.diffContent}`;
+  const response = await model.invoke(prompt);
+  return { styleReview: response.content as string };
+}
+
+async function securityAgent(state: ReviewState): Promise<Partial<ReviewState>> {
+  const prompt = `You are a Cyber Security Engineer. Audit this diff for leaks and SQL injections:\n${state.diffContent}`;
+  const response = await model.invoke(prompt);
+  return { securityReview: response.content as string };
+}
+
+async function logicAgent(state: ReviewState): Promise<Partial<ReviewState>> {
+  const prompt = `You are a Principal Developer. Check this diff for logical flaws and async race conditions:\n${state.diffContent}`;
+  const response = await model.invoke(prompt);
+  return { logicReview: response.content as string };
+}
+
+// 汇总节点：利用 withStructuredOutput 确保 100% 返回正确 JSON
+async function aggregatorNode(state: ReviewState): Promise<Partial<ReviewState>> {
+  const structuredModel = model.withStructuredOutput(ReviewOutputSchema);
+  
+  const aggregatePrompt = `
+    Merge these reviews into structured line-level feedback:
+    Style feedback: ${state.styleReview}
+    Security feedback: ${state.securityReview}
+    Logic feedback: ${state.logicReview}
+  `;
+  
+  const comments = await structuredModel.invoke(aggregatePrompt);
+
+  // 使用 p-limit 控制并发请求数（每次最多3个），防止触发 GitHub 二级限流
+  const limit = pLimit(3);
+  const commentPromises = comments.map((comment) => 
+    limit(async () => {
+      try {
+        await octokit.pulls.createReviewComment({
+          owner: state.owner,
+          repo: state.repo,
+          pull_number: state.pullNumber,
+          body: comment.body,
+          commit_id: state.commitSha, 
+          path: comment.path,
+          line: comment.line,
+        });
+      } catch (error) {
+        console.error(`Failed to post comment on ${comment.path}:${comment.line}`, error);
+      }
+    })
+  );
+
+  await Promise.all(commentPromises);
+  return { commentsToPost: comments };
+}
+
+// ==================== 4. 编排 LangGraph 工作流 ====================
+// 【已修复】：换回了 TypeScript 官方最稳固、无版本冲突的 channels 声明方式
+const workflow = new StateGraph<ReviewState>({
+  channels: {
+    owner: null,
+    repo: null,
+    pullNumber: null,
+    commitSha: null,
+    diffContent: null,
+    styleReview: null,
+    securityReview: null,
+    logicReview: null,
+    commentsToPost: null
+  }
+})
+  .addNode("style_agent", styleAgent)
+  .addNode("security_agent", securityAgent)
+  .addNode("logic_agent", logicAgent)
+  .addNode("aggregator", aggregatorNode)
+  .addEdge(START, "style_agent")
+  .addEdge(START, "security_agent")
+  .addEdge(START, "logic_agent")
+  .addEdge("style_agent", "aggregator")
+  .addEdge("security_agent", "aggregator")
+  .addEdge("logic_agent", "aggregator")
+  .addEdge("aggregator", END);
+
+const app = workflow.compile();
+
+// ==================== 5. 统一系统入口函数 ====================
+export async function runApplication() {
+  console.log("=== ReviewFlow Multi-Agent System Starting ===");
+  const initialState: ReviewState = {
+    owner: "ywu593412-afk",
+    repo: "reviewflow-",
+    pullNumber: 1,
+    commitSha: "b3f7a1c9e8d7f6a5b4c3d2e1f0a9b8c7d6e5f4a3", 
+    diffContent: "const pass = '123456';\nasync function getUser() { return db.query('SELECT * FROM users WHERE id = ' + id); }",
+    commentsToPost: []
+  };
+
+  await app.invoke(initialState);
+  console.log("=== ReviewFlow Run Completed Successfully ===");
+}
