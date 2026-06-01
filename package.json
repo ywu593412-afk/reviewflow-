@@ -1,19 +1,22 @@
 {
   "name": "difflens",
-  "version": "0.1.0",
-  "description": "A lightweight TypeScript tool for verifying Git diff coordinate integrity and filtering LLM line hallucinations.",
+  "version": "1.0.0",
+  "description": "A multi-agent automated code review framework powered by LangGraph and Gemini.",
   "type": "module",
-  "main": "./dist/index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "test": "vitest run"
+    "start": "node dist/index.js"
   },
   "dependencies": {
-    "@langchain/core": "^0.2.0",
-    "@langchain/google-genai": "^2.1.31"
+    "@langchain/google-genai": "^0.1.2",
+    "@langchain/langgraph": "^0.2.4",
+    "@langchain/openai": "^0.3.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
-    "typescript": "^5.4.5",
-    "vitest": "^1.6.0"
+    "@types/node": "^20.11.0",
+    "typescript": "^5.4.5"
   }
 }
