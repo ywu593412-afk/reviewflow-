@@ -1,7 +1,6 @@
  import { StateGraph, START, END } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatGoogleGenAI } from "@langchain/google-genai";
-import { ChatAnthropic } from "@langchain/anthropic";
 import { z } from "zod";
 import { GraphStateAnnotation, GraphState, ReviewComment } from "./types.js";
 
@@ -13,7 +12,6 @@ function getModelInstance(temperature: number) {
   const config = {
     temperature: temperature,
   };
-
   switch (CURRENT_PROVIDER) {
     case "openai":
       return new ChatOpenAI({
@@ -33,12 +31,6 @@ function getModelInstance(temperature: number) {
         ...config,
         modelName: CURRENT_MODEL,
         apiKey: process.env.GEMINI_API_KEY,
-      });
-    case "claude":
-      return new ChatAnthropic({
-        ...config,
-        modelName: CURRENT_MODEL,
-        apiKey: process.env.ANTHROPIC_API_KEY,
       });
     default:
       throw new Error(`Unsupported provider: ${CURRENT_PROVIDER}`);
