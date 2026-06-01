@@ -1,0 +1,20 @@
+{
+  "$schema": "./difflens.config.schema.json",
+  "llm": {
+    "provider": "gemini",
+    "model": "gemini-1.5-pro",
+    "temperature": 0.2
+  },
+  "agents": {
+    "style": { "enabled": true },
+    "security": { "enabled": true },
+    "logic": { "enabled": true }
+  },
+  "verifier": {
+    "enabled": true,
+    "onHallucination": "reject"
+  },
+  "output": {
+    "format": "github-pr"
+  }
+}
