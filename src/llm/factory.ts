@@ -3,21 +3,23 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 
 export function getModelInstance(provider: string, modelName: string, temperature: number) {
   const p = provider.toLowerCase();
-  
+
   if (p === "gemini") {
     return new ChatGoogleGenerativeAI({
       modelName: modelName || "gemini-1.5-pro",
       temperature: temperature,
+      // 核心修改：让 SDK 直接走国内合规的中转节点，避免 fetch failed 报错
+      baseUrl: "https://api.oneapi.sh/v1",
     });
   }
-  
+
   if (p === "openai") {
     return new ChatOpenAI({
       modelName: modelName || "gpt-4o",
       temperature: temperature,
     });
   }
-  
+
   if (p === "deepseek") {
     return new ChatOpenAI({
       modelName: modelName || "deepseek-chat",
@@ -27,6 +29,6 @@ export function getModelInstance(provider: string, modelName: string, temperatur
       },
     });
   }
-  
+
   throw new Error(`Unsupported provider: ${provider}`);
 }
