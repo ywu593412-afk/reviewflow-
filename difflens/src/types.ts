@@ -30,3 +30,13 @@ export const GraphStateAnnotation = Annotation.Root({
 });
 
 export type GraphState = typeof GraphStateAnnotation.State;
+// ================= 后续 #3 多模型支持所需的类型定义 =================
+
+export type LLMProvider = 'deepseek' | 'claude' | 'gemini';
+
+export interface LLMConfig {
+  provider: LLMProvider;
+  modelName: string;
+  apiKey: string;
+  temperature?: number;
+}
