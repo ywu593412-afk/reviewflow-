@@ -1,11 +1,50 @@
-import { StateGraph, START, END } from "@langchain/langgraph";
+ import { StateGraph, START, END } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
+import { ChatGoogleGenAI } from "@langchain/google-genai";
+import { ChatAnthropic } from "@langchain/anthropic";
 import { z } from "zod";
 import { GraphStateAnnotation, GraphState, ReviewComment } from "./types.js";
-// 手机端快捷切换配置
-const CURRENT_PROVIDER = "deepseek"; // 可选: "openai" | "deepseek"
-const CURRENT_MODEL = "deepseek-chat"; // 可选: "gpt-4o" | "deepseek-chat"
 
+// 全局一键切换开关
+const CURRENT_PROVIDER = "gemini"; 
+const CURRENT_MODEL = "gemini-1.5-pro";    
+
+function getModelInstance(temperature: number) {
+  const config = {
+    temperature: temperature,
+  };
+
+  switch (CURRENT_PROVIDER) {
+    case "openai":
+      return new ChatOpenAI({
+        ...config,
+        modelName: CURRENT_MODEL,
+        openAIApiKey: process.env.OPENAI_API_KEY,
+      });
+    case "deepseek":
+      return new ChatOpenAI({
+        ...config,
+        modelName: CURRENT_MODEL,
+        openAIApiKey: process.env.DEEPSEEK_API_KEY,
+        configuration: { baseURL: "https://api.deepseek.com/v1" },
+      });
+    case "gemini":
+      return new ChatGoogleGenAI({
+        ...config,
+        modelName: CURRENT_MODEL,
+        apiKey: process.env.GEMINI_API_KEY,
+      });
+    case "claude":
+      return new ChatAnthropic({
+        ...config,
+        modelName: CURRENT_MODEL,
+        apiKey: process.env.ANTHROPIC_API_KEY,
+      });
+    default:
+      throw new Error(`Unsupported provider: ${CURRENT_PROVIDER}`);
+  }
+}
+  
 const CommentSchema = z.object({
   path: z.string().describe("Relative file path being audited (e.g., 'src/utils.ts')."),
   line: z.number().describe("Precise relative line number on the right side of the diff."),
