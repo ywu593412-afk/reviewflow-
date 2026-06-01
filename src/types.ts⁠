@@ -1,0 +1,25 @@
+export interface ReviewComment {
+  path: string;
+  line: number;
+  body: string;
+  [key: string]: any; 
+}
+
+export interface HunkRange {
+  newStart: number; 
+  newEnd: number;   
+}
+
+export interface FileIndex {
+  path: string;
+  hunks: HunkRange[];
+  validLines: Set<number>; 
+}
+
+export type DiffIndex = Map<string, FileIndex>;
+
+export interface VerifyResult {
+  passed: ReviewComment[];
+  corrected: ReviewComment[];
+  rejected: ReviewComment[];
+}
