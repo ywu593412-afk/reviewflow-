@@ -1,0 +1,43 @@
+import { GraphStateType } from "../state.js";
+import { getModelInstance } from "../../llm/factory.js";
+import { z } from "zod";
+
+const LogicOutputSchema = z.object({
+  comments: z.array(
+    z.object({
+      path: z.string().describe("The file path being reviewed"),
+      line: z.number().describe("The precise, absolute line number prefixed with '+' in the diff"),
+      body: z.string().describe("Concise and critical logic review feedback")
+    })
+  )
+});
+
+export async function logicAgentNode(state: GraphStateType) {
+  const model = getModelInstance("gemini", "gemini-1.5-pro", 0.2);
+  const structuredModel = model.withStructuredOutput(LogicOutputSchema);
+
+  const systemPrompt = `You are a meticulous senior systems engineer specializing in runtime behavior, concurrency, and business logic validation.
+You are reviewing a raw Git unified diff.
+
+CRITICAL COORDINATE REQUIREMENTS:
+- You must ONLY generate feedback on lines prefixed with '+' in the provided diff.
+- Carefully examine the hunk headers (e.g., "@@ -oldStart,len +newStart,len @@") to compute the precise, absolute line number in the incoming new file.
+- If a logical defect belongs to an unchanged context line or a deleted '-' line, you MUST SILENTLY DROP it. Do not guess or shift coordinates.
+- If the code contains no logical bugs or edge case failures, return an empty comments array. Do not make up noise.
+
+Focus your review strictly on: Edge cases, unhandled async promises/errors, potential race conditions, off-by-one errors, and flaws in the core business control flow.`;
+
+  try {
+    const response = await structuredModel.invoke([
+      { role: "system", content: systemPrompt },
+      { role: "user", content: `Here is the Git Diff to review:\n\n${state.diff}` }
+    ]);
+
+    return {
+      logicComments: response.comments,
+    };
+  } catch (error) {
+    console.error("[Logic Agent] Failed to generate structured review:", error);
+    return { logicComments: [] };
+  }
+}
