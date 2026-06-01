@@ -1,0 +1,32 @@
+#!/usr/bin/env node
+import { execSync } from "child_process";
+import { runDiffLens } from "./index.js";
+
+async function main() {
+  console.log("[DiffLens CLI] Initializing automated code review...");
+  try {
+    console.log("[DiffLens CLI] Fetching git diff against origin/main...");
+    const diff = execSync("git diff origin/main", { encoding: "utf8" });
+    if (!diff.trim()) {
+      console.log("[DiffLens CLI] No active code changes detected against origin/main. Exiting.");
+      return;
+    }
+    const trustedComments = await runDiffLens({ diff });
+    console.log("\n=================== 🛡️ DiffLens Review Report ===================");
+    if (trustedComments.length === 0) {
+      console.log("✅ Perfect! No code style, security, or logical flaws found.");
+    } else {
+      console.log(`🚀 Found ${trustedComments.length} trusted optimizations:\n`);
+      trustedComments.forEach((comment, index) => {
+        console.log(`[${index + 1}] File: ${comment.path} | Line: ${comment.line}`);
+        console.log(`    Feedback: ${comment.body}\n`);
+      });
+    }
+    console.log("================================================================");
+  } catch (error) {
+    console.error("[DiffLens CLI] Critical error during execution:", error);
+    process.exit(1);
+  }
+}
+
+main();
