@@ -2,6 +2,9 @@ import { StateGraph, START, END } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 import { GraphStateAnnotation, GraphState, ReviewComment } from "./types.js";
+// 手机端快捷切换配置
+const CURRENT_PROVIDER = "deepseek"; // 可选: "openai" | "deepseek"
+const CURRENT_MODEL = "deepseek-chat"; // 可选: "gpt-4o" | "deepseek-chat"
 
 const CommentSchema = z.object({
   path: z.string().describe("Relative file path being audited (e.g., 'src/utils.ts')."),
@@ -23,10 +26,16 @@ async function executeAuditor(
   diff: string,
   temperature: number
 ): Promise<ReviewComment> {
-  const model = new ChatOpenAI({
-    modelName: "gpt-4o",
-    temperature: temperature,
-  }).withStructuredOutput(MultiAgentReviewResultSchema);
+const apiKey = CURRENT_PROVIDER === "deepseek" ? process.env.DEEPSEEK_API_KEY : process.env.OPENAI_API_KEY;
+const baseURL = CURRENT_PROVIDER === "deepseek" ? "https://api.deepseek.com/v1" : undefined;
+
+const model = new ChatOpenAI({
+  modelName: CURRENT_MODEL,
+  temperature: temperature,
+  openAIApiKey: apiKey,
+  configuration: baseURL ? { baseURL } : undefined
+}).withStructuredOutput(MultiAgentReviewResultSchema);
+
 
   try {
     const rawResponse = await model.invoke();
