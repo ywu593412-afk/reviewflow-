@@ -9,7 +9,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@langchain/core": "^0.2.0"
+    "@langchain/anthropic": "^1.4.0",
+    "@langchain/core": "^0.2.0",
+    "@langchain/google-genai": "^2.1.31"
   },
   "devDependencies": {
     "typescript": "^5.4.5",
