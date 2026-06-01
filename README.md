@@ -1,20 +1,21 @@
 # DiffLens
 
-A lightweight TypeScript tool built with LangGraph for reviewing Git diffs, with additional verification steps designed to isolate and filter out-of-bounds line hallucinations.
+A deterministic verification layer for AI code reviews that prevents line-coordinate hallucinations from reaching pull requests. Built with LangGraph, it orchestrates parallel review agents and validates every generated comment against actual diff coordinates to catch invalid, deleted, or out-of-scope line targets.
 
-*Note: This project started as an experiment to move beyond single-prompt review scripts and see if a structured pipeline can stop broken coordinate references before displaying the final output.*
+## The Problem
 
-*Status: Core engine fully functional and verified via automated CI pipeline.*
+During development, we observed that LLMs regularly miscalculate line numbers when reading raw unified diffs. They frequently anchor critiques onto deleted lines (`-`), unchanged context boundaries, or coordinates completely outside the modified hunks. This results in noisy review feedback and increases review overhead for developers.
 
----
+### Before / After Case Study
 
-## Architecture
+Given the following Git diff:
 
-```mermaid
-graph TD
-    A[Git Diff Input] --> B[Parser Node: Extract Line Range]
-    B --> C[LLM Generation Node: Review Comments]
-    C --> D[Verifier Node: Coordinate Check]
-    D -- Line Out of Bounds --> E[Conditional Router: Error Feedback]
-    E --> C
-    D -- Valid Coordinates --> F[Final Approved Report]
+```diff
+@@ -10,5 +10,6 @@
+ function processPayment(user: User) {
+-  logAdminAction(user.id);
++  if (!user.isActive) {
++    throw new Error("Inactive user");
++  }
+   return stripe.charge(user.paymentId);
+ }
