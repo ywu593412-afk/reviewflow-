@@ -1,15 +1,25 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ProxyAgent } from "undici";
+
+// 🚀 核心全局拦截：强行给 Node.js 的原生 fetch 戴上眼镜，
+// 让它所有发往谷歌官方的请求，全部雷打不动地走你手机小火箭的局域网共享端口
+const originalFetch = globalThis.fetch;
+globalThis.fetch = (input, init) => {
+  return originalFetch(input, {
+    ...init,
+    dispatcher: new ProxyAgent("http://172.20.10.1:1082"),
+  } as any);
+};
 
 export function getModelInstance(provider: string, modelName: string, temperature: number) {
   const p = provider.toLowerCase();
 
   if (p === "gemini") {
+    // 恢复官方原装客户端，配合上面的全局 fetch 拦截，直接带上你的官方密钥冲向谷歌服务器
     return new ChatGoogleGenerativeAI({
       modelName: modelName || "gemini-1.5-pro",
       temperature: temperature,
-      // 核心修改：让 SDK 直接走国内合规的中转节点，避免 fetch failed 报错
-      baseUrl: "https://api.oneapi.sh/v1",
     });
   }
 
