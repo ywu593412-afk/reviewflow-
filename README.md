@@ -1,21 +1,41 @@
 # DiffLens
 
-A deterministic verification layer for AI code reviews that prevents line-coordinate hallucinations from reaching pull requests. Built with LangGraph, it orchestrates parallel review agents and validates every generated comment against actual diff coordinates to catch invalid, deleted, or out-of-scope line targets.
+![Status](https://img.shields.io/badge/status-active-success)
+![Type](https://img.shields.io/badge/type-deterministic__validation-blue)
+![Domain](https://img.shields.io/badge/domain-LLM__dev__tools-orange)
 
-## The Problem
+---
 
-During development, we observed that LLMs regularly miscalculate line numbers when reading raw unified diffs. They frequently anchor critiques onto deleted lines (`-`), unchanged context boundaries, or coordinates completely outside the modified hunks. This results in noisy review feedback and increases review overhead for developers.
+## Deterministic validation layer for LLM-generated code reviews
 
-### Before / After Case Study
+DiffLens enforces structural correctness between LLM-generated feedback and actual git diff topologies before comments hit GitHub Pull Requests.
 
-Given the following Git diff:
+---
 
-```diff
-@@ -10,5 +10,6 @@
- function processPayment(user: User) {
--  logAdminAction(user.id);
-+  if (!user.isActive) {
-+    throw new Error("Inactive user");
-+  }
-   return stripe.charge(user.paymentId);
- }
+## Why it exists
+
+LLM-based code review systems frequently produce unstable line references, including:
+- Deleted line references
+- Out-of-hunk coordinates
+- Misaligned or drifted line numbers
+
+This is caused by a **structural mismatch**: LLMs operate on token sequences, while diff correctness depends on stateful, line-indexed reasoning over structured edit regions defined by hunk headers (`@@ -l,s +l,s @@`).
+
+---
+
+## System flow
+
+```text
+Git Diff
+   │
+   ▼
+Structured Diff Parser (AST)
+   │
+   ▼
+LLM Review Generator (untrusted)
+   │
+   ▼
+Deterministic Validation Layer
+   │
+   ▼
+Filtered PR Output
