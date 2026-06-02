@@ -43,10 +43,10 @@ Examine the Git Diff strictly against these architectural blind spots:
     ]);
 
     return {
-      logicComments: response.comments,
+      comments: response.comments, // 💡 精准修正为 comments，完美对齐全局 Reducer 汇聚管道
     };
   } catch (error) {
     console.error("[Logic Agent] Failed to generate structured review:", error);
-    return { logicComments: [] };
+    return { comments: [] }; // 💡 同步修正容错返回
   }
 }
