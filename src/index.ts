@@ -1,186 +1,98 @@
-import { StateGraph, START, END } from "@langchain/langgraph";
-import { model } from "./llm/index.js";
+#!/usr/bin/env node
+import { execSync } from "child_process";
+import { runDiffLens } from "./index.js";
 
-// ==========================================
-// 1. 状态通道定义 (State Schema)
-// ==========================================
-const stateSchema = {
-  diff: { value: (x: any, y: any) => y, default: () => "" },
-  rawComments: { value: (x: any, y: any) => y, default: () => [] },
-  trustedComments: { value: (x: any, y: any) => y, default: () => [] },
-  finalReport: { value: (x: any, y: any) => y, default: () => [] },
-};
-
-// ==========================================
-// 2. 多智能体核心节点实现
-// ==========================================
-
-// 节点 A: 大模型初步审查智能体
-export async function reviewAgentNode(state: any) {
-  const { diff } = state;
-  if (!diff) return { rawComments: [] };
-
-  const prompt = `You are an expert code reviewer. Review the following Git Diff and identify bugs, anti-patterns, security issues, or code style deviations.
-Output your review as a strictly valid JSON array of objects. Each object must have these exact fields:
-- "file": (string) relative path of the file
-- "line": (number) the exact line number where the issue occurs in the new version of the file
-- "comment": (string) clear, constructive review comment
-
-Git Diff:
-${diff}`;
-
-  try {
-    const result = await model.generateContent({
-      contents: prompt,
-      generationConfig: {
-        responseMimeType: "application/json"
-      }
-    });
-    const responseText = result.response.text().trim();
-    const rawComments = JSON.parse(responseText);
-    return { rawComments: Array.isArray(rawComments) ? rawComments : [] };
-  } catch (error: any) {
-    console.error("🚨 [Review Agent] 生成审查意见失败:", error.message);
-    return { rawComments: [] };
-  }
-}
-
-// 辅助函数：精确定位原始 Diff 中真正发生变动的物理行号
-function getValidDiffLines(diffText: string): Set<string> {
-  const validLines = new Set<string>();
-  if (!diffText) return validLines;
-
-  const lines = diffText.split('\n');
-  let currentFile = '';
-  let currentLineInFile = 0;
-
-  for (const line of lines) {
-    // 解析目标文件名
-    if (line.startsWith('+++ b/')) {
-      currentFile = line.substring(6).trim();
+// 自动探测可用的基准分支
+function getBaseBranch() {
+  const checkBranches = ["origin/main", "origin/master", "main", "master"];
+  for (const branch of checkBranches) {
+    try {
+      execSync(`git rev-parse --verify ${branch}`, { stdio: "ignore" });
+      return branch;
+    } catch {
       continue;
     }
-    
-    // 过滤掉 Diff 的其他前置元数据行
-    if (line.startsWith('--- ') || line.startsWith('index ') || line.startsWith('similarity ')) {
-      continue;
-    }
-
-    // 解析 Hunk 头 (使用非捕获分组 完美兼容单行变动与标准区块)
-    if (line.startsWith('@@ ')) {
-      const match = line.match(/@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
-      if (match) {
-        currentLineInFile = parseInt(match[1], 10) - 1;
-      }
-      continue;
-    }
-
-    // 严格跟踪和映射行号
-    if (currentFile) {
-      if (line.startsWith('\\')) {
-        continue;
-      }
-
-      if (line.startsWith('+')) {
-        currentLineInFile++;
-        validLines.add(`${currentFile}:${currentLineInFile}`);
-      } else if (!line.startsWith('-')) {
-        currentLineInFile++;
-      }
-    }
   }
-  return validLines;
+  return null;
 }
 
-// 节点 B: 验证器节点 (确定性算法过滤层)
-export async function verifierNode(state: any) {
-  const { diff, rawComments } = state; 
-  
-  if (!rawComments || !Array.isArray(rawComments)) {
-    return { trustedComments: [] };
-  }
-
-  const validCoordinates = getValidDiffLines(diff);
-  const trustedComments = [];
-
-  for (const comment of rawComments) {
-    const coordinateKey = `${comment.file}:${comment.line}`;
-
-    if (validCoordinates.has(coordinateKey)) {
-      trustedComments.push(comment);
-    } else {
-      console.warn(`🚨 [Verifier] 拦截幻觉行号: 试图在 [${comment.file}] Line ${comment.line} 创建评论，但该行不在实际变动范围内。`);
-    }
-  }
-
-  return { trustedComments };
-}
-
-// 节点 C: 严重级别排序节点 (强约束 JSON 分级层)
-export async function severityRankerNode(state: any) {
-  const { trustedComments } = state;
-
-  if (!trustedComments || !Array.isArray(trustedComments) || trustedComments.length === 0) {
-    return { finalReport: [] };
-  }
-
-  const prompt = `You are a senior software quality assurance engineer. 
-Classify these verified code review comments into exactly four severity levels: 'critical', 'high', 'medium', or 'low'.
-Retain the original fields ('file', 'line', 'comment') and add the "severity" field for each object.
-
-Input:
-${JSON.stringify(trustedComments, null, 2)}`;
-
-  try {
-    const result = await model.generateContent({
-      contents: prompt,
-      generationConfig: {
-        responseMimeType: "application/json"
-      }
-    });
-
-    const responseText = result.response.text().trim();
-    const finalReport = JSON.parse(responseText);
-    
-    return { finalReport: Array.isArray(finalReport) ? finalReport : trustedComments };
-
-  } catch (error: any) {
-    console.warn("⚠️ [Severity Ranker] 结构化解析异常，启动平稳退化机制。Error:", error.message);
-    
-    const fallbackReport = trustedComments.map((item: any) => ({
-      ...item,
-      severity: "medium"
-    }));
-    return { finalReport: fallbackReport };
+// 根据严重级别映射不同的终端前缀图标
+function getSeverityIcon(severity) {
+  switch (severity) {
+    case "critical": return "🔴 [Critical]";
+    case "high":     return "🟠 [High]";
+    case "medium":   return "🟡 [Medium]";
+    case "low":      return "🔵 [Low]";
+    default:         return "⚪ [Notice]";
   }
 }
 
-// ==========================================
-// 3. 编排拓扑网络连线 (Graph Construction)
-// ==========================================
-const workflow = new StateGraph({ channels: stateSchema })
-  .addNode("review", reviewAgentNode)
-  .addNode("verifier", verifierNode)
-  .addNode("ranker", severityRankerNode)
-  
-  .addEdge(START, "review")
-  .addEdge("review", "verifier")
-  .addEdge("verifier", "ranker")
-  .addEdge("ranker", END);
-
-const app = workflow.compile();
-
-// ==========================================
-// 4. 统一对外的核心调用接口
-// ==========================================
-export async function runDiffLens(inputs: { diff: string }) {
-  const initialState = {
-    diff: inputs.diff,
-    rawComments: [],
-    trustedComments: [],
-    finalReport: []
+async function main() {
+  const EXEC_OPTIONS = {
+    encoding: "utf8",
+    maxBuffer: 10 * 1024 * 1024 // 10MB 安全缓冲区
   };
-  
-  const result = await app.invoke(initialState);
-  return result.finalReport;
+
+  try {
+    const baseBranch = getBaseBranch();
+    
+    if (!baseBranch) {
+      console.error("❌ Error: 无法自动探测到有效的基准分支 (main/master)。请确保您处于 Git 仓库中。");
+      process.exit(1);
+    }
+
+    console.log(`🔍 Detecting changes against: ${baseBranch}`);
+    const diff = execSync(`git diff ${baseBranch}`, EXEC_OPTIONS);
+    
+    if (!diff.trim()) {
+      console.log(`✅ No active code changes detected against ${baseBranch}.`);
+      return;
+    }
+
+    console.log("🤖 Analyzing code changes with Multi-Agent pipeline...");
+    // 调用更新后的图网络，拿到包含 severity 的最终报告数组
+    const finalReport = await runDiffLens({ diff });
+    
+    if (!finalReport || finalReport.length === 0) {
+      console.log("🎉 Code review passed! No issues found by DiffLens.");
+      return;
+    }
+
+    console.log(`\n📝 [DiffLens Review Report] Found ${finalReport.length} insights:\n`);
+    
+    // 按严重程度权重进行降序排列，确保高危问题优先置顶
+    const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+    const sortedReport = [...finalReport].sort((a, b) => {
+      const orderA = severityOrder[a.severity] !== undefined ? severityOrder[a.severity] : 4;
+      const orderB = severityOrder[b.severity] !== undefined ? severityOrder[b.severity] : 4;
+      return orderA - orderB;
+    });
+
+    // 结构化终端精美渲染
+    sortedReport.forEach((item) => {
+      const icon = getSeverityIcon(item.severity);
+      console.log(`${icon} ${item.file}:${item.line}`);
+      console.log(`   💡 ${item.comment}\n`);
+    });
+    
+  } catch (error) {
+    console.error("\n❌ [DiffLens CLI 运行异常]:");
+    const errorMsg = error.message || "";
+    
+    if (error.code === "ENOBUFS") {
+      console.error("-> 错误原因: 当前 Git Diff 文本量过大，超出了进程默认缓冲区。");
+      console.error("-> 解决建议: 请尝试分批提交代码，或减少单次 Pull Request 的文件变更量。");
+    } else if (errorMsg.includes("429") || errorMsg.includes("RESOURCE_EXHAUSTED") || errorMsg.includes("quota")) {
+      console.error("-> 错误原因: 底层 Gemini API 触发了免费额度频率限制（Rate Limit）或配额耗尽。");
+      console.error("-> 解决建议: 请检查您的 API Key 状态，或者稍等几分钟后重新执行审查。");
+    } else if (errorMsg.includes("fetch failed") || errorMsg.includes("UND_ERR_CONNECT")) {
+      console.error("-> 错误原因: 无法连接到大模型终端，网络请求失败。");
+      console.error("-> 解决建议: 请检查您的网络代理（Proxy）配置，确保能够正常访问谷歌 API 服务。");
+    } else {
+      console.error(`-> ${errorMsg || error}`);
+    }
+    process.exit(1);
+  }
 }
+
+main();
