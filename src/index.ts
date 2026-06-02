@@ -1,6 +1,8 @@
+import { model } from "./llm/index.js"; // 请根据你实际的 Gemini 实例引入路径进行对齐
+
 // 辅助函数：精确定位原始 Diff 中真正发生变动的物理行号
-function getValidDiffLines(diffText) {
-  const validLines = new Set();
+function getValidDiffLines(diffText: string): Set<string> {
+  const validLines = new Set<string>();
   if (!diffText) return validLines;
 
   const lines = diffText.split('\n');
@@ -52,7 +54,7 @@ function getValidDiffLines(diffText) {
 }
 
 // 验证器节点核心调度逻辑
-export async function verifierNode(state) {
+export async function verifierNode(state: any) {
   const { diff, rawComments } = state; 
   
   if (!rawComments || !Array.isArray(rawComments)) {
@@ -78,4 +80,43 @@ export async function verifierNode(state) {
   }
 
   return { trustedComments };
+}
+
+// 严重级别排序节点核心逻辑
+export async function severityRankerNode(state: any) {
+  const { trustedComments } = state;
+
+  if (!trustedComments || !Array.isArray(trustedComments) || trustedComments.length === 0) {
+    return { finalReport: [] };
+  }
+
+  const prompt = `You are a senior software quality assurance engineer. 
+Classify these verified code review comments into exactly four severity levels: 'critical', 'high', 'medium', or 'low'.
+Retain the original fields ('file', 'line', 'comment') and add the "severity" field for each object.
+
+Input:
+${JSON.stringify(trustedComments, null, 2)}`;
+
+  try {
+    const result = await model.generateContent({
+      contents: prompt,
+      generationConfig: {
+        responseMimeType: "application/json"
+      }
+    });
+
+    const responseText = result.response.text().trim();
+    const finalReport = JSON.parse(responseText);
+    
+    return { finalReport: Array.isArray(finalReport) ? finalReport : trustedComments };
+
+  } catch (error: any) {
+    console.warn("⚠️ [Severity Ranker] 结构化解析异常，启动平稳退化机制。Error:", error.message);
+    
+    const fallbackReport = trustedComments.map((item: any) => ({
+      ...item,
+      severity: "medium"
+    }));
+    return { finalReport: fallbackReport };
+  }
 }
