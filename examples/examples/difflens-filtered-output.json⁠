@@ -1,0 +1,8 @@
+[
+  {
+    "file": "src/auth.ts",
+    "line": 15,
+    "severity": "suggestion",
+    "body": "Good use of explicit type guards here."
+  }
+]
