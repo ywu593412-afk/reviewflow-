@@ -1,38 +1,81 @@
-import { graph } from "./graph/builder.js";
-import { loadConfig } from "./config/loader.js";
-import { ReviewComment } from "./types.js";
+// 辅助函数：精确定位原始 Diff 中真正发生变动的物理行号
+function getValidDiffLines(diffText) {
+  const validLines = new Set();
+  if (!diffText) return validLines;
 
-export interface RunDiffLensOptions {
-  diff: string;
-  cwd?: string;
+  const lines = diffText.split('\n');
+  let currentFile = '';
+  let currentLineInFile = 0;
+
+  for (const line of lines) {
+    // 1. 解析目标文件名
+    if (line.startsWith('+++ b/')) {
+      currentFile = line.substring(6).trim();
+      continue;
+    }
+    
+    // 过滤掉 Diff 的其他前置元数据行
+    if (line.startsWith('--- ') || line.startsWith('index ') || line.startsWith('similarity ')) {
+      continue;
+    }
+
+    // 2. 解析 Hunk 头 (使用非捕获分组 (?:...) 完美兼容 @@ -1 +1 @@ 和 @@ -10,7 +15,8 @@)
+    if (line.startsWith('@@ ')) {
+      const match = line.match(/@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+      if (match) {
+        // Hunk 头指定的行号是该变动块在新文件中的起始行号
+        // 预设为起始行号减 1，因为随后进入内容行时会先执行自增
+        currentLineInFile = parseInt(match[1], 10) - 1;
+      }
+      continue;
+    }
+
+    // 3. 严格跟踪和映射行号
+    if (currentFile) {
+      // 显式拦截并忽略 Git 末尾的无换行符等元数据标记，防止行号无故偏移
+      if (line.startsWith('\\')) {
+        continue;
+      }
+
+      if (line.startsWith('+')) {
+        currentLineInFile++;
+        // 记录唯一合法的变更坐标格式：文件名:行号
+        validLines.add(`${currentFile}:${currentLineInFile}`);
+      } else if (!line.startsWith('-')) {
+        // 属于未变动的普通上下文行，目标文件行号需正常累加以保证位置准确
+        currentLineInFile++;
+      }
+      // 如果是 '-' 开头的删除行，由于它不存在于新文件中，目标文件行号不累加，直接跳过
+    }
+  }
+  return validLines;
 }
 
-export async function runDiffLens(options: RunDiffLensOptions): Promise<ReviewComment[]> {
-  const { diff, cwd } = options;
+// 验证器节点核心调度逻辑
+export async function verifierNode(state) {
+  const { diff, rawComments } = state; 
   
-  // 1. 动态加载项目中央配置
-  const config = loadConfig(cwd);
-  
-  // 2. 初始化 LangGraph 状态机参数
-  const initialState = {
-    diff: diff,
-    styleComments: [],
-    securityComments: [],
-    logicComments: [],
-    finalComments: [],
-  };
-
-  console.log(`[DiffLens] Launching multi-agent workflow via ${config.llm.provider}/${config.llm.model}...`);
-
-  try {
-    // 3. 驱动拓扑图并发运行并等待安检拦截结果
-    const finalState = await graph.invoke(initialState);
-    
-    console.log(`[DiffLens] Execution finished. Yielded ${finalState.finalComments?.length || 0} trusted comments.`);
-    
-    return finalState.finalComments || [];
-  } catch (error) {
-    console.error("[DiffLens] Execution halted due to a critical graph error:", error);
-    throw error;
+  if (!rawComments || !Array.isArray(rawComments)) {
+    return { trustedComments: [] };
   }
+
+  // 1. 提取原始 Diff 的真实变动坐标快照
+  const validCoordinates = getValidDiffLines(diff);
+  const trustedComments = [];
+
+  // 2. 逐条严格交叉比对
+  for (const comment of rawComments) {
+    // 确保大模型返回的字段能够正确映射到 coordinateKey
+    const coordinateKey = `${comment.file}:${comment.line}`;
+
+    if (validCoordinates.has(coordinateKey)) {
+      // 坐标真实存在，属于合法的审查意见
+      trustedComments.push(comment);
+    } else {
+      // 成功捕获大模型幻觉，进行拦截过滤
+      console.warn(`🚨 [Verifier] 拦截幻觉行号: 试图在 [${comment.file}] Line ${comment.line} 创建评论，但该行不在实际变动范围内。`);
+    }
+  }
+
+  return { trustedComments };
 }
