@@ -1,18 +1,32 @@
 # difflens-ai
 
-A code review framework driven by LangGraph and Gemini, with a deterministic validation layer that prevents invalid line references from reaching your reports.
+A code review framework driven by LangGraph and Gemini, featuring a deterministic validation layer that prevents invalid line references from reaching your reports.
 
-Unlike conventional LLM-based review workflows, **difflens-ai** enforces a strict structural verification layer. The core engine parses diff hunks to construct an **immutable coordinate reference map**. Every LLM-generated comment is then cross-validated against this map — any comment anchored to a non-existent or unmodified line is discarded before the report is rendered.
+## 📌 Why It Exists
 
-## 📦 Installation & Quick Start
+Traditional automated LLM reviews **cannot be reliably used in automated PR gate workflows.** Because generative models lack stateful awareness of structural diff layouts, they introduce severe operational hazards:
 
-```bash
-# 1. Install the CLI tool globally
-npm install -g difflens-ai
+* **Line-Number Hallucinations**: Generative models routinely invent non-existent file coordinates or anchor feedback to unmodified context lines.
+* **Ghost Comments**: Flawed coordinates trigger silent pipeline failures or break production PR gate integrations when trying to write back inline comments.
+* **Context Bleed**: Without rigid boundary constraints, the tool defaults to wasting tokens on untouched regions and diluting the signal of real issues.
 
-# 2. Configure your Gemini API Key
-export GEMINI_API_KEY="your_gemini_api_key_here"
+**difflens-ai** resolves this by enforcing a non-LLM algorithmic verification gate directly between the model's inference and your workflow output.
 
-# 3. Navigate to your project and execute the review pipeline
-cd your-git-repository
-difflens-ai
+## 🔄 The Data Pipeline
+
+The framework guides structural payloads through explicit boundary transitions, optimized for clean rendering across all screen sizes:
+
+```text
+[Raw Git Stream]
+       │
+       ▼
+[Parsed Hunks] ────────► Matrix: { file, hunk, line-range }
+       │                 (added_lines := '+' rows from normalized unified diff)
+       ▼
+[LLM Inference] ───────► Payload: { file, line, message }
+       │
+       ▼
+[Verifier Gate] ───────► Condition: line ∈ hunk.added_lines
+       │
+       ▼
+[Rendered Report] ─────► Safe, prioritized UI delivery
