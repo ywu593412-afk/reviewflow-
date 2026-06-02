@@ -6,5 +6,5 @@ export { graph } from "./graph/builder.js";
 // 2. 导出基准测试需要的 Diff 解析函数
 export { parseDiff as parseDiffToValidLines } from "./verifier/diffParser.js";
 
-// 3. 补齐基准测试需要的坐标校验节点（把之前我看漏的这一行彻底加上）
-export { validateCoordinatesNode } from "./verifier/commentVerifier.js";
+// 3. 用 as 将 verifyComments 重命名转发为测试脚本需要的 validateCoordinatesNode
+export { verifyComments as validateCoordinatesNode } from "./verifier/commentVerifier.js";
