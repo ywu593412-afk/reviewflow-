@@ -1,36 +1,18 @@
-# DiffLens
+# difflens-ai
 
-![Status](https://img.shields.io/badge/status-active-success)
-![Type](https://img.shields.io/badge/type-rule__based__validation-blue)
-![Domain](https://img.shields.io/badge/domain-LLM__dev__tools-orange)
+A code review framework driven by LangGraph and Gemini, with a deterministic validation layer that prevents invalid line references from reaching your reports.
 
----
+Unlike conventional LLM-based review workflows, **difflens-ai** enforces a strict structural verification layer. The core engine parses diff hunks to construct an **immutable coordinate reference map**. Every LLM-generated comment is then cross-validated against this map — any comment anchored to a non-existent or unmodified line is discarded before the report is rendered.
 
-## Deterministic Validation Layer for LLM-Generated Code Reviews
+## 📦 Installation & Quick Start
 
-DiffLens enforces structural correctness between LLM-generated feedback and actual git diff topologies before comments hit GitHub Pull Requests.
+```bash
+# 1. Install the CLI tool globally
+npm install -g difflens-ai
 
----
+# 2. Configure your Gemini API Key
+export GEMINI_API_KEY="your_gemini_api_key_here"
 
-## Design Principle
-
-> **LLMs propose review logic, deterministic systems authorize structural validity. DiffLens treats LLM outputs as untrusted suggestions.**
-
----
-
-## Why It Exists (The Structural Mismatch)
-
-LLM-based code review systems frequently produce unstable line references (referencing deleted lines, out-of-hunk coordinates, or shifted line numbers). 
-
-This is **not** a prompt engineering issue. It is a structural limitation: LLMs operate on token sequences, while diff correctness depends on stateful, line-indexed reasoning over structured edit regions defined by hunk headers (`@@ -l,s +l,s @@`).
-
----
-
-## System Flow
-
-```text
-Git Diff ──> Structured Diff Parser (AST) ──> [Immutable Reference Map]
-                                                           │
-LLM Reviewer ──> [Untrusted Suggestion Payload] ───────┼─> (Deterministic Validation Engine)
-                                                           │
-GitHub API <── [Filtered / Realigned PR Output] <──────┘
+# 3. Navigate to your project and execute the review pipeline
+cd your-git-repository
+difflens-ai
