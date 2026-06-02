@@ -1,4 +1,4 @@
-Import { GraphStateType } from "../state.js";
+import { GraphStateType } from "../state.js";
 import { getModelInstance } from "../../llm/factory.js";
 import { z } from "zod";
 
@@ -16,7 +16,6 @@ export async function logicAgentNode(state: GraphStateType) {
   const model = getModelInstance("gemini", "gemini-1.5-pro", 0.2);
   const structuredModel = model.withStructuredOutput(LogicOutputSchema);
 
-  // ✨ 工业级硬核审计提示词：弃用形容词堆砌，改用精准的漏洞向量与行为卡点
   const systemPrompt = `You are a hostile, elite Node.js/TypeScript Core Systems Engineer performing a rigorous double-blind code review. Your sole objective is to break the incoming code by identifying subtle runtime edge cases, concurrency issues, and logical flaws.
 
 [RULES OF ENGAGEMENT]
