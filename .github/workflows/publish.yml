@@ -1,57 +1,34 @@
 name: Publish to NPM
+
+# 核心改进：锁定只有在 GitHub 页面手动发布 Release 时才触发
+# 哪怕你天天推 README.md，流水线也绝对不会乱开枪
 on:
-  push:
-    branches:
-      - main
+  release:
+    types: [published]
+
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
-          registry-url: https://registry.npmjs.org/
-      - name: Create and Clean bin.js
-        run: |
-          mkdir -p src
-          cat << 'EOF' > src/bin.js
-          #!/usr/bin/env node
-          import { execSync } from "child_process";
-          import { runDiffLens } from "./index.js";
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
 
-          async function main() {
-            console.log("[DiffLens CLI] Initializing automated code review...");
-            try {
-              console.log("[DiffLens CLI] Fetching git diff against origin/main...");
-              const diff = execSync("git diff origin/main", { encoding: "utf8" });
-              if (!diff.trim()) {
-                console.log("[DiffLens CLI] No active code changes detected against origin/main. Exiting.");
-                return;
-              }
-              const trustedComments = await runDiffLens({ diff });
-              console.log("\n=================== 🛡️ DiffLens Review Report ===================");
-              if (trustedComments.length === 0) {
-                console.log("✅ Perfect! No code style, security, or logical flaws found.");
-              } else {
-                console.log(`🚀 Found ${trustedComments.length} trusted optimizations:\n`);
-                trustedComments.forEach((comment, index) => {
-                  console.log(`[${index + 1}] File: ${comment.path} | Line: ${comment.line}`);
-                  console.log(`    Feedback: ${comment.body}\n`);
-                });
-              }
-              console.log("================================================================");
-            } catch (error) {
-              console.error("[DiffLens CLI] Critical error during execution:", error);
-              process.exit(1);
-            }
-          }
+      # 使用 npm ci 代替 npm install，严格锁定 package-lock.json 里的依赖版本，保证 CI 环境绝对干净
+      - name: Install dependencies
+        run: npm ci
 
-          main();
-          EOF
-          sed -i 's/\r$//' src/bin.js
-          echo "✨ src/bin.js 已由云端完美动态生成并洗净！"
-      - name: Publish Package
+      # 自带安全垫：如果你的 package.json 里有 build 脚本就自动跑，没有就安全跳过，绝不报错挂起
+      - name: Build project
+        run: npm run build --if-present
+
+      # 物理推包，自动读取你在 GitHub Secrets 里配置的 NPM_TOKEN
+      - name: Publish to NPM
         run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
