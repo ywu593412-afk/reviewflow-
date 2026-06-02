@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { execSync } from "child_process";
-import { runDiffLens } from "./index.js";
+// 💡 请将此处改为你实际定义 runDiffLens 函数的文件路径（例如 `./workflow.js` 或 `./agent.js`）
+// 注意：在 ESM 环境下，即使是 TS 文件，导入时也必须保留 `.js` 后缀
+import { runDiffLens } from "./graph/index.js"; 
 
 // 自动探测可用的基准分支
 function getBaseBranch() {
