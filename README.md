@@ -1,32 +1,11 @@
-# difflens-ai
+# difflens (v1.3.0)
 
-A code review framework driven by LangGraph and Gemini, featuring a deterministic validation layer that prevents invalid line references from reaching your reports.
+**A deterministic validation engine that prevents LLM line-number hallucinations from reaching pull requests.**
 
-## 📌 Why It Exists
+AI code review systems often generate valuable feedback but attach comments to non-existent lines, deleted code, or coordinates that fall outside the actual patch. These failures make automated review pipelines unreliable and difficult to trust in production environments.
 
-Traditional automated LLM reviews **cannot be reliably used in automated PR gate workflows.** Because generative models lack stateful awareness of structural diff layouts, they introduce severe operational hazards:
+difflens solves this by parsing unified diffs, constructing an exact whitelist of reviewable coordinates, and validating every generated comment against that coordinate map before publication. Invalid references are rejected or deterministically remapped when possible.
 
-* **Line-Number Hallucinations**: Generative models routinely invent non-existent file coordinates or anchor feedback to unmodified context lines.
-* **Ghost Comments**: Flawed coordinates trigger silent pipeline failures or break production PR gate integrations when trying to write back inline comments.
-* **Context Bleed**: Without rigid boundary constraints, the tool defaults to wasting tokens on untouched regions and diluting the signal of real issues.
+Built in TypeScript with LangGraph JS and Octokit, difflens can run as a standalone validation engine or integrate directly into CI workflows through GitHub Actions.
 
-**difflens-ai** resolves this by enforcing a non-LLM algorithmic verification gate directly between the model's inference and your workflow output.
-
-## 🔄 The Data Pipeline
-
-The framework guides structural payloads through explicit boundary transitions, optimized for clean rendering across all screen sizes:
-
-```text
-[Raw Git Stream]
-       │
-       ▼
-[Parsed Hunks] ────────► Matrix: { file, hunk, line-range }
-       │                 (added_lines := '+' rows from normalized unified diff)
-       ▼
-[LLM Inference] ───────► Payload: { file, line, message }
-       │
-       ▼
-[Verifier Gate] ───────► Condition: line ∈ hunk.added_lines
-       │
-       ▼
-[Rendered Report] ─────► Safe, prioritized UI delivery
+**Result: every emitted review comment is guaranteed to reference a valid location inside the reviewed patch.**
