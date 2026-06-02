@@ -1,0 +1,43 @@
+name: Cross-Platform Tests
+
+# 触发条件：只要 main 分支有代码推送，或者有人提 PR，就自动触发全量测试
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Test on ${{ matrix.os }} (Node ${{ matrix.node-version }})
+    runs-on: ${{ matrix.os }}
+
+    # 核心矩阵配置：让测试在三大主流操作系统上完全隔离、并行运行
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node-version: [20]
+      fail-fast: false # 即使其中一个系统挂了，其他系统的测试也会坚持跑完，方便排查特定系统的兼容性
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      # 使用 npm ci 严格锁定 package-lock.json，确保在干净的环境中测试
+      - name: Install dependencies
+        run: npm ci
+
+      # 如果有编译步骤则自动跑，没有就安全跳过
+      - name: Build project
+        run: npm run build --if-present
+
+      # 触发执行你 package.json 里的测试命令
+      - name: Run test suite
+        run: npm test
