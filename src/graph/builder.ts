@@ -2,7 +2,7 @@ import { StateGraph, START, END } from "@langchain/langgraph";
 import { GraphState } from "./state.js";
 import { styleAgentNode } from "./nodes/styleAgent.js";
 import { securityAgentNode } from "./nodes/securityAgent.js";
-import { logicAgentNode } from "./nodes/logicagent.js";
+import { logicAgentNode } from "./nodes/logicAgent.js";
 import { verifierNode } from "./nodes/verifier.js";
 
 const workflow = new StateGraph(GraphState)
@@ -12,12 +12,12 @@ const workflow = new StateGraph(GraphState)
   .addNode("logicAgent", logicAgentNode)
   .addNode("verifier", verifierNode)
 
-  // 2. 编排并行分发流 (Fan-Out)：图启动时，三个 Agent 并发运行
+  // 2. 编排并行分流 (Fan-Out): 图启动时，三个 Agent 并行
   .addEdge(START, "styleAgent")
   .addEdge(START, "securityAgent")
   .addEdge(START, "logicAgent")
 
-  // 3. 编排数据汇聚流 (Fan-In)：利用 state 中的 reducer，自动等待三者完成后统一进入安检拦截层
+  // 3. 编排数据汇聚流 (Fan-In): 利用 state 中的 reducer
   .addEdge("styleAgent", "verifier")
   .addEdge("securityAgent", "verifier")
   .addEdge("logicAgent", "verifier")
@@ -25,5 +25,5 @@ const workflow = new StateGraph(GraphState)
   // 4. 验证结束，流转至终点
   .addEdge("verifier", END);
 
-// 编译并导出可执行的图流实例
+// 编排并导出可执行的图流实例
 export const graph = workflow.compile();
