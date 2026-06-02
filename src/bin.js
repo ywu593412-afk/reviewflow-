@@ -2,7 +2,7 @@
 import { execSync } from "child_process";
 import { runDiffLens } from "./index.js";
 
-// 1. 自动探测可用的基准分支
+// 自动探测可用的基准分支
 function getBaseBranch() {
   const checkBranches = ["origin/main", "origin/master", "main", "master"];
   for (const branch of checkBranches) {
@@ -16,11 +16,21 @@ function getBaseBranch() {
   return null;
 }
 
+// 根据严重级别映射不同的终端前缀图标
+function getSeverityIcon(severity) {
+  switch (severity) {
+    case "critical": return "🔴 [Critical]";
+    case "high":     return "🟠 [High]";
+    case "medium":   return "🟡 [Medium]";
+    case "low":      return "🔵 [Low]";
+    default:         return "⚪ [Notice]";
+  }
+}
+
 async function main() {
-  // 设置 10MB 的安全缓冲区，防止大型 Diff 导致缓冲区溢出崩溃 (ENOBUFS)
   const EXEC_OPTIONS = {
     encoding: "utf8",
-    maxBuffer: 10 * 1024 * 1024 
+    maxBuffer: 10 * 1024 * 1024 // 10MB 安全缓冲区
   };
 
   try {
@@ -39,14 +49,34 @@ async function main() {
       return;
     }
 
-    // 调用 LangGraph 多智能体核心
-    const trustedComments = await runDiffLens({ diff });
-    // 后续渲染逻辑...
+    console.log("🤖 Analyzing code changes with Multi-Agent pipeline...");
+    // 调用更新后的图网络，拿到包含 severity 的最终报告数组
+    const finalReport = await runDiffLens({ diff });
+    
+    if (!finalReport || finalReport.length === 0) {
+      console.log("🎉 Code review passed! No issues found by DiffLens.");
+      return;
+    }
+
+    console.log(`\n📝 [DiffLens Review Report] Found ${finalReport.length} insights:\n`);
+    
+    // 按严重程度权重进行降序排列，确保高危问题优先置顶
+    const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+    const sortedReport = [...finalReport].sort((a, b) => {
+      const orderA = severityOrder[a.severity] !== undefined ? severityOrder[a.severity] : 4;
+      const orderB = severityOrder[b.severity] !== undefined ? severityOrder[b.severity] : 4;
+      return orderA - orderB;
+    });
+
+    // 结构化终端精美渲染
+    sortedReport.forEach((item) => {
+      const icon = getSeverityIcon(item.severity);
+      console.log(`${icon} ${item.file}:${item.line}`);
+      console.log(`   💡 ${item.comment}\n`);
+    });
     
   } catch (error) {
     console.error("\n❌ [DiffLens CLI 运行异常]:");
-
-    // 针对各种边缘生产环境隐患进行定点清除和优雅报错
     const errorMsg = error.message || "";
     
     if (error.code === "ENOBUFS") {
@@ -59,10 +89,8 @@ async function main() {
       console.error("-> 错误原因: 无法连接到大模型终端，网络请求失败。");
       console.error("-> 解决建议: 请检查您的网络代理（Proxy）配置，确保能够正常访问谷歌 API 服务。");
     } else {
-      // 兜底的未知逻辑错误
       console.error(`-> ${errorMsg || error}`);
     }
-    
     process.exit(1);
   }
 }
