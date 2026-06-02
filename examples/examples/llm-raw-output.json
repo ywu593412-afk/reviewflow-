@@ -1,0 +1,14 @@
+[
+  {
+    "file": "src/auth.ts",
+    "line": 15,
+    "severity": "suggestion",
+    "body": "Good use of explicit type guards here."
+  },
+  {
+    "file": "src/auth.ts",
+    "line": 245,
+    "severity": "critical",
+    "body": "Potential memory leak found in this token expiration block. Please clean up the event listener."
+  }
+]
