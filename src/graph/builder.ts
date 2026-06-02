@@ -2,7 +2,7 @@ import { StateGraph, START, END } from "@langchain/langgraph";
 import { GraphState } from "./state.js";
 import { styleAgentNode } from "./nodes/styleAgent.js";
 import { securityAgentNode } from "./nodes/securityAgent.js";
-import { logicAgentNode } from "./nodes/logicAgent.js";
+import { logicAgentNode } from "./nodes/logicagent.js";
 import { verifierNode } from "./nodes/verifier.js";
 
 const workflow = new StateGraph(GraphState)
