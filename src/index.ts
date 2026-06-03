@@ -16,3 +16,6 @@ export function testBug() {
   }
   Promise.resolve('test');
 }
+// 故意制造一个明显的错误，看看 Agent 抓不抓得住
+const user: any = undefined;
+console.log(user.name); // 这是一个会导致运行时崩溃的越界访问
