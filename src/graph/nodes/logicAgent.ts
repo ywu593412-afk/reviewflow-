@@ -5,7 +5,7 @@ import { z } from "zod";
 const LogicOutputSchema = z.object({
   comments: z.array(
     z.object({
-      path: z.string().describe("The file path being reviewed"),
+      file: z.string().describe("The file path being reviewed"),
       line: z.number().describe("The precise, absolute line number prefixed with '+' in the diff"),
       body: z.string().describe("Concise and critical logic review feedback")
     })
@@ -13,6 +13,7 @@ const LogicOutputSchema = z.object({
 });
 
 export async function logicAgentNode(state: GraphStateType) {
+  // 确保使用推理能力更强的 pro 模型应对复杂逻辑和坐标运算
   const model = getModelInstance("gemini", "gemini-1.5-pro", 0.2);
   const structuredModel = model.withStructuredOutput(LogicOutputSchema);
 
@@ -43,10 +44,10 @@ Examine the Git Diff strictly against these architectural blind spots:
     ]);
 
     return {
-      comments: response.comments, // 💡 精准修正为 comments，完美对齐全局 Reducer 汇聚管道
+      comments: response.comments,
     };
   } catch (error) {
     console.error("[Logic Agent] Failed to generate structured review:", error);
-    return { comments: [] }; // 💡 同步修正容错返回
+    return { comments: [] };
   }
 }
