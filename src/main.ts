@@ -5,10 +5,10 @@ import { graph, parseDiffToValidLines } from "./index.js";
 export async function run() {
   try {
     const token = process.env.INPUT_GITHUB_TOKEN;
-    const geminiKey = process.env.GEMINI_API_KEY;
+    const deepseekKey = process.env.DEEPSEEK_API_KEY; // 这里改回了 DEEPSEEK
 
     if (!token) throw new Error("缺少 GitHub Token");
-    if (!geminiKey) throw new Error("缺少 GEMINI_API_KEY");
+    if (!deepseekKey) throw new Error("缺少 DEEPSEEK_API_KEY");
 
     const octokit = github.getOctokit(token);
     const context = github.context;
