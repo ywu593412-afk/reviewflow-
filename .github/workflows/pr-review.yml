@@ -15,9 +15,14 @@ jobs:
         with:
           node-version: '20'
       - name: Install dependencies
-        run: npm install
-      - name: Run DiffLens Multi-Agent
-        run: npx tsx src/main.ts
+        run: |
+          npm install
+          npm install -g typescript ts-node
+      - name: Final Execution
+        run: |
+          echo "--- START ---"
+          ts-node src/main.ts
+          echo "--- END ---"
         env:
           INPUT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
