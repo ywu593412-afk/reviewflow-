@@ -36,11 +36,21 @@ export async function run() {
 
     const diffIndex = parseDiffToValidLines(diffString);
 
-    const result = await graph.invoke({
-      diff: diffString,
-      diffIndex: diffIndex,
-      comments: []
-    });
+    // === 核心逻辑保护层 ===
+    // 即使多智能体审查逻辑崩溃，也不要中断整个 GitHub Action 流程
+    let result;
+    try {
+      result = await graph.invoke({
+        diff: diffString,
+        diffIndex: diffIndex,
+        comments: []
+      });
+    } catch (agentError) {
+      console.error("=== 多智能体审查代理执行崩溃 ===");
+      console.error(agentError);
+      result = { comments: [] }; // 发生故障时返回空列表，防止程序终止
+    }
+    // === 核心逻辑保护层结束 ===
 
     const validatedComments = result.comments || [];
     if (validatedComments.length === 0) {
@@ -64,12 +74,9 @@ export async function run() {
 
     core.info("[DiffLens] PR Review 提交成功。");
   } catch (error: any) {
-    console.error("=== 发生未捕获的严重错误 ===");
+    console.error("=== 发生未捕获的严重系统错误 ===");
     console.error(error);
-    if (error && error.errors) {
-      console.error("=== 并发节点详细死因 ===");
-      console.error(JSON.stringify(error.errors, null, 2));
-    }
+    // 只有在非 Agent 相关的严重系统级错误发生时，我们才标记失败
     core.setFailed(`运行崩溃: ${error instanceof Error ? error.message : "未知错误"}`);
   }
 }
