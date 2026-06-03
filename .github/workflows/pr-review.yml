@@ -28,4 +28,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # 物理外挂：用一个假密钥，堵住 factory.ts 里那段忘了删的防御逻辑
+          DEEPSEEK_API_KEY: "bypass-bug"
         run: npx tsx src/main.ts
+
