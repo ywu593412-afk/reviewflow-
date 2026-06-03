@@ -5,7 +5,7 @@ import { graph, parseDiffToValidLines } from "./index.js";
 export async function run() {
   try {
     // 1. 获取输入参数与上下文环境
-    const token = core.getInput("github-token", { required: true });
+    const token = core.getInput("github_token", { required: true });
     const octokit = github.getOctokit(token);
     const context = github.context;
 
