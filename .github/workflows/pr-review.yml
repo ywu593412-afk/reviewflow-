@@ -26,7 +26,7 @@ jobs:
       - name: Run DiffLens Multi-Agent
         env:
           # core.getInput("github-token") 会自动去读 INPUT_ 前缀的环境变量
-          INPUT_GITHUB-TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # 记得传你的 Gemini 密钥给底层 LLM
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: npx tsx src/main.ts
