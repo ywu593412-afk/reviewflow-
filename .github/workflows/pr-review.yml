@@ -1,7 +1,5 @@
 name: DiffLens PR Review
-
 on: [pull_request]
-
 jobs:
   review:
     runs-on: ubuntu-latest
@@ -10,19 +8,15 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
       - name: Install dependencies
-        run: |
-          npm install
-          npm install -g typescript ts-node
+        run: npm install
       - name: Final Execution
         run: |
-          echo "--- START ---"
-          ts-node src/main.ts
-          echo "--- END ---"
+          npx tsx src/main.ts
         env:
           INPUT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
