@@ -4,10 +4,9 @@ import { graph, parseDiffToValidLines } from "./index.js";
 
 export async function run() {
   try {
-    // 直接从底层环境变量读取，彻底绕过 core.getInput 的解析坑
     const token = process.env.GITHUB_TOKEN;
     if (!token) {
-      core.setFailed("环境变量中未找到 GITHUB_TOKEN，请检查工作流配置。");
+      core.setFailed("未找到 GITHUB_TOKEN");
       return;
     }
 
@@ -15,7 +14,7 @@ export async function run() {
     const context = github.context;
 
     if (context.eventName !== "pull_request" || !context.payload.pull_request) {
-      core.info("当前非 Pull Request 事件，退出执行。");
+      core.info("非 PR 事件，退出。");
       return;
     }
 
@@ -64,7 +63,17 @@ export async function run() {
     });
 
     core.info("[DiffLens] PR Review 提交成功。");
-  } catch (error) {
+  } catch (error: any) {
+    // 关键改动：将错误对象彻底解构并打印到 GitHub Actions 日志中
+    console.error("=== 发生未捕获的严重错误 ===");
+    console.error(error);
+    
+    // 如果是并发错误，将内部封装的具体死因全部打印出来
+    if (error && error.errors) {
+      console.error("=== 并发节点详细死因 ===");
+      console.error(JSON.stringify(error.errors, null, 2));
+    }
+    
     core.setFailed(`运行崩溃: ${error instanceof Error ? error.message : "未知错误"}`);
   }
 }
