@@ -2,39 +2,41 @@ import { GraphStateType } from "../state.js";
 import { getModelInstance } from "../../llm/factory.js";
 import { z } from "zod";
 
+// 💡 必须与 logicAgent 保持完全一致的输出结构，确保图网络状态顺利汇聚
 const StyleOutputSchema = z.object({
   comments: z.array(
     z.object({
-      path: z.string().describe("The file path being reviewed"),
+      file: z.string().describe("The file path being reviewed"),
       line: z.number().describe("The precise, absolute line number prefixed with '+' in the diff"),
-      body: z.string().describe("Concise and critical code style review feedback")
+      body: z.string().describe("Concise and critical code style feedback")
     })
   )
 });
 
 export async function styleAgentNode(state: GraphStateType) {
-  const model = getModelInstance("gemini", "gemini-1.5-pro", 0.1);
+  // 💡 算力分级：风格审查不需要极深推理，降配使用较快的 flash 模型，提升整体并行速度
+  const model = getModelInstance("gemini", "gemini-1.5-flash", 0.2);
   const structuredModel = model.withStructuredOutput(StyleOutputSchema);
 
-  const systemPrompt = `You are a dogmatic Frontend Architect and Clean Code purist. You review code with the stance that technical debt is a structural failure.
+  const systemPrompt = `You are an uncompromising Clean Code enforcer. Your sole objective is to ruthlessly critique the incoming code for readability, maintainability, and naming conventions.
 
 [RULES OF ENGAGEMENT]
-1. NO LINT TRIVIA: Completely ignore formatting issues (whitespaces, semicolons, trailing commas) that automated formatters (Prettier/ESLint) solve. Focus strictly on architecture and clean code degradation.
-2. REASON-DRIVEN: Explain exactly how the code pattern causes future maintenance friction or breaks engineering abstraction.
+1. ZERO COMPLIMENTS: Do not praise the code. Silence means approval.
+2. SUBSTANCE ONLY: Point out the exact smell and explain why it is bad.
 3. LANGUAGE: Write all 'body' feedback in precise, professional Chinese.
 
-[TARGET ARCHITECTURAL BLIND SPOTS]
-Audit the Git Diff ruthlessly against these structural anti-patterns:
-- Pseudo Type-Safety (TS Deficits): Misuse of 'as any', bypassing strict type-checking via explicit casting where a domain type should be defined, or implicit type leaking that degrades compiler trust.
-- Magic Values & Fragile Semantics: Inline string literals or raw numbers used in business branch switching instead of centralized Constants, Enums, or Config maps.
-- Cohesion & Responsibility Fractures: Functions handling multiple domain layers (e.g., mixing business rules directly with UI formats or raw network serialization), or complex nested conditional matrices that can be refactored via Guard Clauses.
-- Leaky Implementations: Leaving leftover tracking instrumentation (console.log, active debuggers), leaking mutable function argument side-effects, or failing to throw structured Error classes in favor of vague return types (like returning null or false on failure).
+[TARGET CODE SMELLS]
+Examine the Git Diff strictly against these readability issues:
+- Magic Variables: Unexplained hardcoded numbers or strings.
+- Poor Naming: Cryptic, overly abbreviated, or misleading variable/function names.
+- Cognitive Complexity: Excessive nesting (e.g., deep if/else or loop chains) or functions that clearly do too many things.
+- Comment Clutter: Redundant comments that just repeat what the code does, or commented-out dead code.
 
 [CRITICAL COORDINATE REQUIREMENTS]
 - You must ONLY generate feedback on lines prefixed with '+' in the provided diff.
-- Carefully examine the hunk headers to compute the precise, absolute line number in the incoming new file.
-- If a style defect belongs to an unchanged context line or a deleted '-' line, you MUST SILENTLY DROP it.
-- If the code contains no maintainability anti-patterns, return an empty comments array.`;
+- Carefully examine the hunk headers (e.g., "@@ -oldStart,len +newStart,len @@") to compute the precise, absolute line number in the incoming new file.
+- If a style defect belongs to an unchanged context line or a deleted '-' line, you MUST SILENTLY DROP it. Do not guess or shift coordinates.
+- If the code is clean and adheres to standard practices, return an empty comments array.`;
 
   try {
     const response = await structuredModel.invoke([
@@ -43,10 +45,11 @@ Audit the Git Diff ruthlessly against these structural anti-patterns:
     ]);
 
     return {
-      styleComments: response.comments,
+      comments: response.comments,
     };
   } catch (error) {
     console.error("[Style Agent] Failed to generate structured review:", error);
-    return { styleComments: [] };
+    // 容错兜底：如果 Flash 模型偶尔输出异常，返回空数组，绝不能阻塞整个图网络
+    return { comments: [] }; 
   }
 }
