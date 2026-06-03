@@ -1,32 +1,16 @@
 import { parseDiff } from "./verifier/diffParser.js";
 import { validateCoordinatesNode } from "./verifier/commentVerifier.js";
+// 把真正的 AI 大脑接回来
+import { graph } from "./graph/builder.js"; 
 
-export { parseDiff as parseDiffToValidLines, validateCoordinatesNode };
+export { parseDiff as parseDiffToValidLines, validateCoordinatesNode, graph };
 
-// 模拟导出 graph 对象，以便 main.ts 调用
-export const graph = {
-  invoke: async (input: any) => {
-    // 你的 AI 处理逻辑在这里
-    return { comments: [] }; 
-  }
-};
-
-// 修复崩溃后的代码逻辑
+// === 下面是故意制造的逻辑漏洞（AI 必须抓到这个） ===
 export function testBug() {
-  const obj: any = undefined;
+  // 故意制造一个明显的代码风险：访问未定义对象的属性
+  // 只要这个函数不被执行，就不会搞崩流水线；但 AI 审查源码时一定会报警
+  const user: any = undefined;
   
-  // 增加安全防护，防止运行时崩溃
-  if (obj && obj.someProperty) {
-    console.log(obj.someProperty);
-  } else {
-    console.warn("检测到空对象访问，已拦截崩溃。");
-  }
-  
-  // 修复你日志里报错的 user 对象访问
-  const user: any = undefined; 
-  if (user && user.name) {
-      console.log(user.name);
-  } else {
-      console.warn("警告：user 对象为空，跳过此属性访问");
-  }
+  console.log(user.name); // 致命错误 1
+  return user.someProperty; // 致命错误 2
 }
