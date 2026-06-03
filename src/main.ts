@@ -55,7 +55,5 @@ async function run() {
   }
 }
 
-// 确保在被直接执行时调用 run()
-if (require.main === module) {
-  run();
-}
+// 删掉了错误的 require 判断，直接强制执行
+run();
