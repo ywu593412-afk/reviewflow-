@@ -64,16 +64,12 @@ export async function run() {
 
     core.info("[DiffLens] PR Review 提交成功。");
   } catch (error: any) {
-    // 关键改动：将错误对象彻底解构并打印到 GitHub Actions 日志中
     console.error("=== 发生未捕获的严重错误 ===");
     console.error(error);
-    
-    // 如果是并发错误，将内部封装的具体死因全部打印出来
     if (error && error.errors) {
       console.error("=== 并发节点详细死因 ===");
       console.error(JSON.stringify(error.errors, null, 2));
     }
-    
     core.setFailed(`运行崩溃: ${error instanceof Error ? error.message : "未知错误"}`);
   }
 }
