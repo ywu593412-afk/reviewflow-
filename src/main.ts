@@ -55,4 +55,7 @@ async function run() {
   }
 }
 
-run();
+// 确保在被直接执行时调用 run()
+if (require.main === module) {
+  run();
+}
