@@ -13,4 +13,4 @@ export function testBug() {
   
   console.log(user.name); // 致命错误 1
   return user.someProperty; // 致命错误 2
-}
+}  
