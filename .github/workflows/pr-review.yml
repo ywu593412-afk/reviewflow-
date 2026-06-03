@@ -26,7 +26,6 @@ jobs:
       - name: Run DiffLens Multi-Agent
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # 关键修复：把你的密钥强行喂给 LangChain 想要的变量名
-          GOOGLE_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: npx tsx src/main.ts
