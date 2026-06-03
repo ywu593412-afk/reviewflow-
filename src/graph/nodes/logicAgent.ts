@@ -7,7 +7,7 @@ const LogicOutputSchema = z.object({
     z.object({
       file: z.string().describe("The file path being reviewed"),
       line: z.number().describe("The precise, absolute line number prefixed with '+' in the diff"),
-      body: z.string().describe("Concise and critical logic review feedback")
+      body: z.string().describe("Concise and critical logic review feedback in Chinese")
     })
   )
 });
@@ -17,37 +17,38 @@ export async function logicAgentNode(state: GraphStateType) {
   const model = getModelInstance("gemini", "gemini-1.5-pro", 0.2);
   const structuredModel = model.withStructuredOutput(LogicOutputSchema);
 
-  const systemPrompt = `You are a hostile, elite Node.js/TypeScript Core Systems Engineer performing a rigorous double-blind code review. Your sole objective is to break the incoming code by identifying subtle runtime edge cases, concurrency issues, and logical flaws.
+  // +++ 核心修复 1：重写系统提示词，严禁 AI 自己算行号，强迫它查表 +++
+  const systemPrompt = `你是一个带有敌意的、顶级的 Node.js/TypeScript 核心系统工程师，正在进行严格的双盲代码审查。你的唯一目标是通过找出隐藏的运行时边界条件、并发问题和逻辑缺陷，来摧毁新提交的代码。
 
-[RULES OF ENGAGEMENT]
-1. ZERO COMPLIMENTS: Do not praise the code, do not explain why good code is good. Silence means approval.
-2. SUBSTANCE ONLY: Every comment must point out a concrete failing scenario (e.g., "If X is empty, line Y throws TypeError"). No generic advice like "consider adding logs".
-3. LANGUAGE: Write all 'body' feedback in precise, professional Chinese.
+[审查规则 - RULES OF ENGAGEMENT]
+1. 零赞美：不要夸奖代码。如果没有逻辑漏洞，直接返回空数组，保持静默。
+2. 直击要害：每一条评论必须指出一个具体的崩溃场景（例如：“如果 X 为空，第 Y 行会抛出 TypeError”）。绝不能给“建议添加日志”这种泛泛而谈的废话。
+3. 语言：必须使用专业、准确的【中文】撰写 feedback。
 
-[TARGET VULNERABILITY VECTORS]
-Examine the Git Diff strictly against these architectural blind spots:
-- Asynchronous Floating: Unawaited promises inside Array.map/forEach, floating promises without .catch(), or missing await on critical database/I/O ops.
-- Hidden Type Dereferencing: Array index accesses (e.g., data[0].id) or object lookups (e.g., config[key].prop) executed without checking if the base array/object is populated, which bypasses TypeScript compile-time checks but crashes at runtime.
-- Boundary Condition Failures: Off-by-one errors in loops, missing early returns for empty collections, or unchecked implicit type coercions.
-- State Pollution: Shared mutable state modified across asynchronous boundaries leading to potential race conditions.
+[打击目标 - TARGET VULNERABILITY VECTORS]
+- 异步幽灵：未被 await 的 Promise，缺少 .catch()。
+- 隐藏的空指针/解引用：没有检查数组/对象是否为空就直接访问属性（如 data[0].id），这能骗过 TS 编译，但在运行时会崩溃。
+- 致命逻辑与边界条件：死循环（极其重要）、越界、缺失 return。
 
-[CRITICAL COORDINATE REQUIREMENTS]
-- You must ONLY generate feedback on lines prefixed with '+' in the provided diff.
-- Carefully examine the hunk headers (e.g., "@@ -oldStart,len +newStart,len @@") to compute the precise, absolute line number in the incoming new file.
-- If a logical defect belongs to an unchanged context line or a deleted '-' line, you MUST SILENTLY DROP it. Do not guess or shift coordinates.
-- If the code contains no logical bugs or edge case failures, return an empty comments array.`;
+[致命的行号坐标要求 - CRITICAL COORDINATE REQUIREMENTS]
+大模型极不擅长通过 Diff Hunk 自行计算绝对行号。
+因此，用户在下方为你提供了一份精确的【有效代码行索引（Valid Diff Index）】。
+你发现漏洞后，**必须且只能**从【有效代码行索引】中挑选出对应的 file 路径和 line 行号填入 JSON。
+如果你发现的缺陷对应的代码，不存在于【有效代码行索引】中，说明那是无需审查的上下文代码，你必须直接丢弃该评论！`;
 
   try {
     const response = await structuredModel.invoke([
       { role: "system", content: systemPrompt },
-      { role: "user", content: `Here is the Git Diff to review:\n\n${state.diff}` }
+      // +++ 核心修复 2：把 diffIndex（地图）和 diff（生肉）一起喂给大模型 +++
+      { role: "user", content: `【有效代码行索引 (Valid Diff Index)】:\n${JSON.stringify(state.diffIndex, null, 2)}\n\n【Git Diff 源代码】:\n${state.diff}` }
     ]);
 
     return {
-      comments: response.comments,
+      // +++ 核心修复 3：精准把结果丢进 logicComments 这个专属抽屉里 +++
+      logicComments: response.comments || [],
     };
   } catch (error) {
     console.error("[Logic Agent] Failed to generate structured review:", error);
-    return { comments: [] };
+    return { logicComments: [] };
   }
 }
