@@ -9,13 +9,10 @@ export { parseDiff as parseDiffToValidLines } from "./verifier/diffParser.js";
 // 3. 导出具备高内聚校验与防御能力的核心节点
 export { validateCoordinatesNode } from "./verifier/commentVerifier.js";
 
-// === 下面是故意制造的逻辑漏洞（AI 会抓到这个） ===
+// === 下面是故意制造的逻辑漏洞（AI 必须抓到这个） ===
 export function testBug() {
-  // 1. 故意制造魔术数字（这是代码审查中典型的坏味道）
-  const threshold = 999;
-  
-  // 2. 故意引入不必要的复杂逻辑
-  if (threshold === 999) {
-    return "漏洞：使用了硬编码的魔术数字 999，应该定义为常量。";
-  }
+  // 故意制造一个明显的代码风险：访问未定义对象的属性
+  // 任何 AI 审查员看到这里都会触发警告
+  const obj: any = undefined;
+  return obj.someProperty; 
 }
