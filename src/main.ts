@@ -5,7 +5,6 @@ import { graph, parseDiffToValidLines } from "./index.js";
 export async function run() {
   try {
     const token = process.env.INPUT_GITHUB_TOKEN;
-    const deepseekKey = process.env.DEEPSEEK_API_KEY;
 
     if (!token) throw new Error("缺少 GitHub Token");
     if (!deepseekKey) throw new Error("缺少 DEEPSEEK_API_KEY");
@@ -57,5 +56,3 @@ export async function run() {
     core.setFailed(`运行崩溃: ${error.message}`);
   }
 }
-
-run();
