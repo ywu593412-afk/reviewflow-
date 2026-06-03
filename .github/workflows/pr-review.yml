@@ -1,32 +1,23 @@
 name: DiffLens PR Review
 
-on:
-  pull_request:
-    types: [opened, synchronize] # 当新建 PR 或 PR 追加提交时触发
-
-permissions:
-  contents: read
-  pull-requests: write # 必须要有写权限，才能把评论回写到 PR 里
+on: [pull_request]
 
 jobs:
   review:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
       - name: Install dependencies
         run: npm install
-
       - name: Run DiffLens Multi-Agent
-        env:
-          # core.getInput("github-token") 会自动去读 INPUT_ 前缀的环境变量
-          INPUT_GITHUB-TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # 记得传你的 Gemini 密钥给底层 LLM
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: npx tsx src/main.ts
+        env:
+          INPUT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
