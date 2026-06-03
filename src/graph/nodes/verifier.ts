@@ -1,32 +1,18 @@
 import { GraphStateType } from "../state.js";
-import { parseDiff } from "../../verifier/diffParser.js";
-import { verifyComments } from "../../verifier/commentVerifier.js";
+// 💡 把旧的 verifyComments 替换为最新的 validateCoordinatesNode
+import { validateCoordinatesNode } from "../../verifier/commentVerifier.js";
 
 export async function verifierNode(state: GraphStateType) {
-  // 1. 确定性解析当前状态中的原始 Git Diff 文本
-  const diffIndex = parseDiff(state.diff);
+  try {
+    // 调用我们重构好的高内聚校验器，传入当前图网络中的评论和索引
+    const result = validateCoordinatesNode(state.comments, state.diffIndex, "reject");
 
-  // 2. 汇聚并行管道中所有智能体写入的候选评论
-  const allComments = [
-    ...state.styleComments,
-    ...state.securityComments,
-    ...state.logicComments,
-  ];
-
-  // 3. 执行物理坐标强拦截。
-  // 响应 Claude 的指正，今晚默认锁死 "reject" 策略，杜绝行号错位引发的语义灾难
-  const { passed, corrected, rejected } = verifyComments(allComments, diffIndex, "reject");
-
-  // 4. 打印确定性审计日志，方便本地/CI 环境量成效
-  if (rejected.length > 0) {
-    console.warn(`[DiffLens Verifier] Blocked ${rejected.length} hallucinated comments.`);
+    // 将清洗后、坐标绝对合法的评论流转回全局状态
+    return {
+      comments: result.validatedComments,
+    };
+  } catch (error) {
+    console.error("[Verifier Node] Execution failed:", error);
+    return { comments: [] };
   }
-  if (passed.length > 0) {
-    console.log(`[DiffLens Verifier] Passed ${passed.length} trusted comments.`);
-  }
-
-  // 5. 写入最终状态通道，清空不确定性噪音
-  return {
-    finalComments: passed.concat(corrected),
-  };
 }
