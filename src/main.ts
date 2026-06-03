@@ -5,79 +5,62 @@ import { graph, parseDiffToValidLines } from "./index.js";
 export async function run() {
   try {
     const token = process.env.GITHUB_TOKEN;
-    if (!token) {
-      core.setFailed("未找到 GITHUB_TOKEN");
-      return;
-    }
+    if (!token) throw new Error("未找到 GITHUB_TOKEN");
 
     const octokit = github.getOctokit(token);
     const context = github.context;
 
     if (context.eventName !== "pull_request" || !context.payload.pull_request) {
-      core.info("非 PR 事件，退出。");
+      core.info("非 PR 事件，跳过。");
       return;
     }
 
+    const { owner, repo } = context.repo;
     const prNumber = context.payload.pull_request.number;
-    const owner = context.repo.owner;
-    const repo = context.repo.repo;
 
-    core.info(`[DiffLens] 开始处理 PR #${prNumber} in ${owner}/${repo}`);
+    core.info(`[DiffLens] 开始分析 PR #${prNumber} ...`);
 
-    const response = await octokit.rest.pulls.get({
-      owner,
-      repo,
-      pull_number: prNumber,
-      mediaType: { format: "diff" },
+    const { data: diffData } = await octokit.rest.pulls.get({
+      owner, repo, pull_number: prNumber, mediaType: { format: "diff" },
     });
 
-    const diffString = response.data as unknown as string;
-    if (!diffString) return;
-
+    const diffString = diffData as unknown as string;
     const diffIndex = parseDiffToValidLines(diffString);
 
-    // === 核心逻辑保护层 ===
-    // 即使多智能体审查逻辑崩溃，也不要中断整个 GitHub Action 流程
-    let result;
-    try {
-      result = await graph.invoke({
-        diff: diffString,
-        diffIndex: diffIndex,
-        comments: []
-      });
-    } catch (agentError) {
-      console.error("=== 多智能体审查代理执行崩溃 ===");
-      console.error(agentError);
-      result = { comments: [] }; // 发生故障时返回空列表，防止程序终止
-    }
-    // === 核心逻辑保护层结束 ===
+    // 监控 Agent 产出
+    core.info(">>> 开始调用多智能体网络...");
+    const result = await graph.invoke({ diff: diffString, diffIndex: diffIndex, comments: [] });
+    
+    console.log("=== 智能体产出的原始内容 ===");
+    console.log(JSON.stringify(result.comments, null, 2));
 
-    const validatedComments = result.comments || [];
+    const validatedComments = (result.comments || []).filter((c: any) => c.file && c.line);
+    
     if (validatedComments.length === 0) {
-      core.info("审查完毕：未发现问题。");
+      core.info("审查完毕：智能体未产出评论。");
       return;
     }
 
+    // 格式化评论以符合 GitHub API 要求
     const reviewComments = validatedComments.map((c: any) => ({
-      path: c.file,
-      line: c.line,
-      body: c.body,
+      path: c.file.replace(/^\//, ''), // 去掉开头的斜杠，防止路径匹配失败
+      line: Number(c.line),
+      body: `🤖 DiffLens 审查建议: ${c.body}`,
     }));
 
+    core.info(">>> 准备发送的评论列表:");
+    console.log(JSON.stringify(reviewComments, null, 2));
+
     await octokit.rest.pulls.createReview({
-      owner,
-      repo,
-      pull_number: prNumber,
+      owner, repo, pull_number: prNumber,
       event: "COMMENT",
       comments: reviewComments,
     });
 
-    core.info("[DiffLens] PR Review 提交成功。");
+    core.info("[DiffLens] 成功发布评论！");
   } catch (error: any) {
-    console.error("=== 发生未捕获的严重系统错误 ===");
-    console.error(error);
-    // 只有在非 Agent 相关的严重系统级错误发生时，我们才标记失败
-    core.setFailed(`运行崩溃: ${error instanceof Error ? error.message : "未知错误"}`);
+    console.error("=== 严重错误现场 ===", error);
+    core.setFailed(`流程终止: ${error.message}`);
   }
 }
 
