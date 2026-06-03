@@ -36,6 +36,11 @@ async function run() {
       comments: []
     });
 
+    // +++ 核心探头：强制打印 AI 的真实返回数据 +++
+    console.log("========== AI 原始返回数据 ==========");
+    console.log(JSON.stringify(result, null, 2));
+    console.log("=====================================");
+
     if (result.comments && result.comments.length > 0) {
       await octokit.rest.pulls.createReview({
         owner, repo, pull_number: prNumber!,
@@ -55,5 +60,4 @@ async function run() {
   }
 }
 
-// 删掉了错误的 require 判断，直接强制执行
 run();
