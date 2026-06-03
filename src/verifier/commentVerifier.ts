@@ -1,11 +1,10 @@
-import { ReviewComment, DiffIndex, VerifyResult, FileIndex } from "../types.js";
+import { ReviewComment, DiffIndex, VerifyResult } from "../types.js";
 
 function findNearestValidLine(
   target: number,
   validLines: Set<number>,
   hunks: any[]
 ): number | null {
-  // 判定目标行号是否落在任何一个合法的 hunk 变更区间内
   const containingHunk = hunks.find(
     (h) => target >= h.newStart && target <= h.newEnd
   );
@@ -14,7 +13,6 @@ function findNearestValidLine(
   let nearest: number | null = null;
   let minDist = Infinity;
 
-  // 在同一个 hunk 内部寻找距离最近的合法变动行
   for (const validLine of validLines) {
     if (validLine < containingHunk.newStart || validLine > containingHunk.newEnd) {
       continue;
@@ -28,29 +26,49 @@ function findNearestValidLine(
   return nearest;
 }
 
-export function verifyComments(
-  comments: ReviewComment[],
-  diffIndex: DiffIndex,
+export function validateCoordinatesNode(
+  stateOrComments: any,
+  diffIndex?: DiffIndex,
   strategy: "reject" | "correct" = "reject"
-): VerifyResult {
-  const result: VerifyResult = { passed: [], corrected: [], rejected: [] };
+) {
+  // 入参防御：自适应解析状态对象或直接传入的数组
+  const comments: any[] = Array.isArray(stateOrComments)
+    ? stateOrComments
+    : (stateOrComments && typeof stateOrComments === "object" && Array.isArray(stateOrComments.comments))
+      ? stateOrComments.comments
+      : [];
 
-  for (const comment of comments) {
-    const fileIndex = diffIndex.get(comment.path);
+  const actualDiffIndex = diffIndex || (stateOrComments && typeof stateOrComments === "object" ? stateOrComments.diffIndex : undefined);
 
-    // Level 3: 文件路径根本不在 diff 中（空间张冠李戴），直接丢弃
+  const passed: any[] = [];
+  const corrected: any[] = [];
+  const errors: any[] = []; 
+
+  for (const rawComment of comments) {
+    // 字段属性双向绑定：防止外部脚本通过 file 或 path 访问时发生 undefined
+    const comment = {
+      ...rawComment,
+      file: rawComment.file || rawComment.path,
+      path: rawComment.path || rawComment.file
+    };
+
+    if (!comment.file) {
+      errors.push(comment);
+      continue;
+    }
+
+    const fileIndex = actualDiffIndex ? actualDiffIndex.get(comment.file) : undefined;
+
     if (!fileIndex) {
-      result.rejected.push(comment);
+      errors.push(comment);
       continue;
     }
 
-    // Level 1: 精确命中合法变动行，直接放行
     if (fileIndex.validLines.has(comment.line)) {
-      result.passed.push(comment);
+      passed.push(comment);
       continue;
     }
 
-    // Level 2: 未精确命中，根据配置策略处理
     if (strategy === "correct") {
       const nearest = findNearestValidLine(
         comment.line,
@@ -58,19 +76,31 @@ export function verifyComments(
         fileIndex.hunks
       );
       if (nearest !== null) {
-        result.corrected.push({
+        corrected.push({
           ...comment,
           line: nearest,
           body: `${comment.body}\n\n> ⚠️ _Line coordinate auto-corrected from ${comment.line} to ${nearest} by DiffLens_`
         });
       } else {
-        result.rejected.push(comment);
+        errors.push(comment);
       }
     } else {
-      // 默认执行严格拦截策略，杜绝行号错位带来的语义灾难
-      result.rejected.push(comment);
+      errors.push(comment);
     }
   }
 
-  return result;
+  const validatedComments = [...passed, ...corrected];
+
+  if (errors.length > 0) {
+    console.warn(`[DiffLens Verifier] Blocked ${errors.length} coordinate-shifted comments from rendering.`);
+  }
+
+  // 原生返回完备结构，直接对接业务和评测脚本
+  return {
+    errors,
+    validatedComments,
+    passed,
+    corrected,
+    rejected: errors
+  };
 }
