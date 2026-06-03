@@ -36,22 +36,29 @@ async function run() {
       comments: []
     });
 
-    // +++ 核心探头：强制打印 AI 的真实返回数据 +++
     console.log("========== AI 原始返回数据 ==========");
     console.log(JSON.stringify(result, null, 2));
-    console.log("=====================================");
 
-    if (result.comments && result.comments.length > 0) {
+    // +++ 核心修复：把多智能体产生的所有类型的评论合并起来 +++
+    const allComments = [
+      ...(result.styleComments || []),
+      ...(result.securityComments || []),
+      ...(result.logicComments || []),
+      ...(result.finalComments || []),
+      ...(result.comments || [])
+    ];
+
+    if (allComments.length > 0) {
       await octokit.rest.pulls.createReview({
         owner, repo, pull_number: prNumber!,
         event: "COMMENT",
-        comments: result.comments.map((c: any) => ({
+        comments: allComments.map((c: any) => ({
           path: c.file, line: Number(c.line), body: c.body,
         })),
       });
       console.log("评论已发布");
     } else {
-      console.log("未发现bug");
+      console.log("未发现bug (AI 审查完毕，但未产生任何评论)");
     }
 
   } catch (error: any) {
