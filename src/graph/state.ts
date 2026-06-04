@@ -1,34 +1,52 @@
 import { Annotation } from "@langchain/langgraph";
-// 💡 注意：这里假设你在 types.ts 中定义了 DiffIndex
 import { ReviewComment, DiffIndex } from "../types.js";
 
 export const GraphState = Annotation.Root({
+  // ==========================================
+  // 1. 基础输入与上下文
+  // ==========================================
+  
   // 输入的原始 Git Diff 文本
   diff: Annotation<string>,
   
-  // 💡 [补全遗漏] 解析出的 Diff 索引，供验证器对照坐标
+  // 解析出的 Diff 索引，供验证器严格对照坐标
   diffIndex: Annotation<DiffIndex>({
     reducer: (x, y) => y,
     default: () => new Map(), 
   }),
   
-  // 风格智能体产生的候选评论，使用 concat 数组拼接进行并行汇聚
+  // ==========================================
+  // 2. 并发智能体候选通道 (追加模式)
+  // ==========================================
+  
   styleComments: Annotation<ReviewComment[]>({
     reducer: (x, y) => x.concat(y),
     default: () => [],
   }),
   
-  // 安全智能体产生的候选评论
   securityComments: Annotation<ReviewComment[]>({
     reducer: (x, y) => x.concat(y),
     default: () => [],
   }),
   
-  // 业务逻辑智能体产生的候选评论
   logicComments: Annotation<ReviewComment[]>({
     reducer: (x, y) => x.concat(y),
     default: () => [],
   }),
+
+  // ==========================================
+  // 3. 流转与循环中转站 (覆盖模式)
+  // ==========================================
+  
+  // 核心：专门用于在 Aggregate -> Verifier -> Corrector 之间传递待校验的数据
+  pendingVerifyComments: Annotation<ReviewComment[]>({
+    reducer: (x, y) => y, 
+    default: () => [],
+  }),
+  
+  // ==========================================
+  // 4. 最终输出与降级池 (覆盖模式)
+  // ==========================================
   
   // 最终经过校验层清洗、过滤后的可信评论输出 (精确坐标)
   finalComments: Annotation<ReviewComment[]>({
@@ -36,19 +54,23 @@ export const GraphState = Annotation.Root({
     default: () => [],
   }),
 
-  // 💡 [新增] 存放因行号失效而降级的全局/文件级评论
+  // 存放因行号失效而降级的全局/文件级评论
   generalComments: Annotation<ReviewComment[]>({
     reducer: (x, y) => y,
     default: () => [],
   }),
 
-  // 💡 [新增] 存放传给 LLM 让其修正的错误信息
+  // ==========================================
+  // 5. 循环控制与状态反馈 (覆盖模式)
+  // ==========================================
+  
+  // 存放传给 Corrector 让其修正的错误信息详情
   validationErrors: Annotation<string[]>({
     reducer: (x, y) => y,
     default: () => [],
   }),
 
-  // 💡 [新增] 记录当前坐标修正的重试次数，防止死循环
+  // 记录当前坐标修正的重试次数，绝对防止死循环
   retryCount: Annotation<number>({
     reducer: (x, y) => y,
     default: () => 0,
