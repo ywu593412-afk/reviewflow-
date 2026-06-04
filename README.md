@@ -24,7 +24,9 @@ DiffLens injects a deterministic guardrail between the LLM pipeline and the GitH
 [ GitHub API (Strict Deterministic Gateway) ] ───► [ 100% Reliable Delivery ]
 ```
 
-> 💡 **Read the full engineering breakdown and story behind DiffLens on [DEV.to](https://dev.to/shy_the_a91bfb236d4eeb5bb/i-thought-my-ai-code-reviewer-was-finished-then-a-single-hallucinated-line-number-broke-everything-2a55）**
+> 💡 > 💡 **Read the full engineering breakdown and story behind DiffLens on DEV.to:**
+> https://dev.to/shy_the_a91bfb236d4eeb5bb/i-thought-my-ai-code-reviewer-was-finished-then-a-single-hallucinated-line-number-broke-everything-2a55
+
 
 ---
 
