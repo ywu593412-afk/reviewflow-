@@ -1,34 +1,60 @@
 import { StateGraph, START, END } from "@langchain/langgraph";
-import { GraphState } from "./state.js";
+import { GraphState, GraphStateType } from "./state.js";
 
-// 导入你的三支特种兵部队
-import { logicAgentNode } from "./nodes/logicAgent.js";
-import { styleAgentNode } from "./nodes/styleAgent.js";
-import { securityAgentNode } from "./nodes/securityAgent.js";
-
-// 导入终极防线：坐标校验器
+// 引入你所有的业务节点（请确保路径与你实际文件中的导出名一致）
+import { styleAgent } from "./nodes/styleAgent.js"; 
+import { securityAgent } from "./nodes/securityAgent.js";
+import { logicAgent } from "./nodes/logicAgent.js";
 import { verifierNode } from "./nodes/verifier.js";
+import { correctorNode } from "./nodes/corrector.js";
 
-// 初始化状态图网络
+// 💡 聚合节点：负责解决 LangGraph 的并发等待问题
+// 当三个初始 Agent 跑完后，它负责把结果打包送入循环池
+function aggregateNode(state: GraphStateType): Partial<GraphStateType> {
+  const allInitialComments = [
+    ...(state.styleComments || []),
+    ...(state.securityComments || []),
+    ...(state.logicComments || []),
+  ];
+  return { pendingVerifyComments: allInitialComments };
+}
+
+// 💡 条件路由函数：判断是走向纠错还是走向结束
+function checkVerificationStatus(state: GraphStateType) {
+  if (state.validationErrors && state.validationErrors.length > 0) {
+    return "correctorNode"; // 有错，打回修正
+  }
+  return END; // 全对，或者已被截断降级，结束流程
+}
+
+// 构建图谱
 const workflow = new StateGraph(GraphState)
-  // 1. 注册所有节点
-  .addNode("logic_agent", logicAgentNode)
-  .addNode("style_agent", styleAgentNode)
-  .addNode("security_agent", securityAgentNode)
-  .addNode("verifier", verifierNode)
+  // 1. 注册所有的 Node
+  .addNode("styleAgent", styleAgent)
+  .addNode("securityAgent", securityAgent)
+  .addNode("logicAgent", logicAgent)
+  .addNode("aggregateNode", aggregateNode)
+  .addNode("verifierNode", verifierNode)
+  .addNode("correctorNode", correctorNode)
 
-  // 2. 并行分发 (Fan-out)：网络启动时，三个 Agent 同时去审这份 Diff
-  .addEdge(START, "logic_agent")
-  .addEdge(START, "style_agent")
-  .addEdge(START, "security_agent")
+  // 2. 并发起点：同时触发三个审查维度的 Agent
+  .addEdge(START, "styleAgent")
+  .addEdge(START, "securityAgent")
+  .addEdge(START, "logicAgent")
 
-  // 3. 统一汇聚 (Fan-in)：所有 Agent 审完后，脏数据统一交给 verifier 节点做物理过滤
-  .addEdge("logic_agent", "verifier")
-  .addEdge("style_agent", "verifier")
-  .addEdge("security_agent", "verifier")
+  // 3. 并发终点：汇聚到聚合节点
+  .addEdge("styleAgent", "aggregateNode")
+  .addEdge("securityAgent", "aggregateNode")
+  .addEdge("logicAgent", "aggregateNode")
 
-  // 4. 结束管线：校验完毕，输出绝对合法的 comments
-  .addEdge("verifier", END);
+  // 4. 将初始总数据送入验证器
+  .addEdge("aggregateNode", "verifierNode")
 
-// 编译并导出可执行的图网络
-export const graph = workflow.compile();
+  // 5. 核心状态机路由：根据验证结果分发
+  .addConditionalEdges("verifierNode", checkVerificationStatus)
+
+  // 6. 纠错完成后，必须强制回到验证器，形成死循环防护闭环
+  .addEdge("correctorNode", "verifierNode");
+
+// 编译并导出可运行的应用实例
+export const app = workflow.compile();
