@@ -5,30 +5,29 @@ import { styleAgentNode } from "./nodes/styleAgent.js";
 import { securityAgentNode } from "./nodes/securityAgent.js";
 import { verifierNode } from "./nodes/verifier.js";
 import { correctorNode } from "./nodes/corrector.js";
+import { summarizerNode } from "./nodes/summarizer.js"; // 新增
 
 function aggregateNode(state: GraphStateType): Partial<GraphStateType> {
   return { pendingVerifyComments: [...state.styleComments, ...state.securityComments, ...state.logicComments] };
 }
 
-function checkVerificationStatus(state: GraphStateType) {
-  return (state.validationErrors && state.validationErrors.length > 0) ? "corrector" : END;
-}
-
 const workflow = new StateGraph(GraphState)
-  .addNode("logic_agent", logicAgentNode)
-  .addNode("style_agent", styleAgentNode)
-  .addNode("security_agent", securityAgentNode)
+  .addNode("logic", logicAgentNode)
+  .addNode("style", styleAgentNode)
+  .addNode("security", securityAgentNode)
   .addNode("aggregate", aggregateNode)
   .addNode("verifier", verifierNode)
   .addNode("corrector", correctorNode)
-  .addEdge(START, "logic_agent")
-  .addEdge(START, "style_agent")
-  .addEdge(START, "security_agent")
-  .addEdge("logic_agent", "aggregate")
-  .addEdge("style_agent", "aggregate")
-  .addEdge("security_agent", "aggregate")
+  .addNode("summarizer", summarizerNode) // 新增
+  .addEdge(START, "logic")
+  .addEdge(START, "style")
+  .addEdge(START, "security")
+  .addEdge("logic", "aggregate")
+  .addEdge("style", "aggregate")
+  .addEdge("security", "aggregate")
   .addEdge("aggregate", "verifier")
-  .addConditionalEdges("verifier", checkVerificationStatus)
-  .addEdge("corrector", "verifier");
+  .addConditionalEdges("verifier", (s) => (s.validationErrors?.length > 0 ? "corrector" : "summarizer")) // 验证后流向 summarizer
+  .addEdge("corrector", "verifier")
+  .addEdge("summarizer", END);
 
 export const graph = workflow.compile();
