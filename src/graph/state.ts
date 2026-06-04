@@ -39,6 +39,10 @@ export const GraphState = Annotation.Root({
     reducer: (x, y) => y,
     default: () => 0,
   }),
+  summary: Annotation<string>({ // 这一行是新增的，用于存放总结报告
+    reducer: (x, y) => y,
+    default: () => "",
+  }),
 });
 
 export type GraphStateType = typeof GraphState.State;
