@@ -1,6 +1,7 @@
 import { GraphStateType } from "../state.js";
 import { ReviewComment } from "../../types.js";
-// 请替换为你项目中实际调用大模型的工具函数
+
+// ⚠️ 注意：这里需要替换为你项目中实际用来调用大模型的函数
 // import { invokeLLM } from "../../utils/llm.js"; 
 
 export async function correctorNode(state: GraphStateType): Promise<Partial<GraphStateType>> {
@@ -29,25 +30,25 @@ export async function correctorNode(state: GraphStateType): Promise<Partial<Grap
     需要修正的评论数据：
     ${JSON.stringify(commentsToCorrect, null, 2)}
     
-    请严格对照有效索引，修正上述评论的 'line' 字段。如果确实无法找到对应的代码行，请勿修改内容，尽力而为。
-    必须且只能返回修正后的 JSON 数组，格式例如: [{ "path": "src/main.ts", "line": 15, "body": "..." }]
+    请严格对照有效索引，修正上述评论的 'line' 字段。如果确实无法找到对应的代码行，请勿修改内容。
+    必须且只能返回修正后的 JSON 数组，格式例如: [{"path": "src/main.ts", "line": 15, "body": "..."}]
   `;
 
   try {
-    // ⚠️ 此处依赖你的具体 LLM 调用封装，请按需调整
+    // ⚠️ 此处依赖你的具体 LLM 调用逻辑，联调大模型时请解开注释并调整
     // const responseText = await invokeLLM(prompt);
     // const correctedComments = JSON.parse(responseText) as ReviewComment[];
     
-    // 这里为了演示不报错，暂用原数据模拟返回。实际使用请开启上方代码。
+    // 💡 临时占位：为了让你现在代码编译不报错且能跑通整个路由，这里先原样返回
+    // 实际接入大模型时，请删掉下面这一行
     const correctedComments = commentsToCorrect;
 
     return {
       pendingVerifyComments: correctedComments,
     };
   } catch (error) {
-    console.error("[Corrector Node] LLM 纠错生成或解析失败:", error);
-    // 如果大模型出错或 JSON 解析失败，我们原样返回，
-    // 交给下一轮的 Verifier 触发重试上限的优雅降级，防止系统崩溃
+    console.error("[Corrector Node] LLM 纠错失败或 JSON 解析异常:", error);
+    // 如果大模型出错或解析失败，原样返回，交给 Verifier 去执行降级
     return { pendingVerifyComments: commentsToCorrect };
   }
 }
