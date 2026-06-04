@@ -2,10 +2,6 @@ import { Annotation } from "@langchain/langgraph";
 import { ReviewComment, DiffIndex } from "../types.js";
 
 export const GraphState = Annotation.Root({
-  // ==========================================
-  // 1. 基础输入与上下文
-  // ==========================================
-  
   // 输入的原始 Git Diff 文本
   diff: Annotation<string>,
   
@@ -14,10 +10,6 @@ export const GraphState = Annotation.Root({
     reducer: (x, y) => y,
     default: () => new Map(), 
   }),
-  
-  // ==========================================
-  // 2. 并发智能体候选通道 (追加模式)
-  // ==========================================
   
   styleComments: Annotation<ReviewComment[]>({
     reducer: (x, y) => x.concat(y),
@@ -34,19 +26,11 @@ export const GraphState = Annotation.Root({
     default: () => [],
   }),
 
-  // ==========================================
-  // 3. 流转与循环中转站 (覆盖模式)
-  // ==========================================
-  
   // 核心：专门用于在 Aggregate -> Verifier -> Corrector 之间传递待校验的数据
   pendingVerifyComments: Annotation<ReviewComment[]>({
     reducer: (x, y) => y, 
     default: () => [],
   }),
-  
-  // ==========================================
-  // 4. 最终输出与降级池 (覆盖模式)
-  // ==========================================
   
   // 最终经过校验层清洗、过滤后的可信评论输出 (精确坐标)
   finalComments: Annotation<ReviewComment[]>({
@@ -60,10 +44,6 @@ export const GraphState = Annotation.Root({
     default: () => [],
   }),
 
-  // ==========================================
-  // 5. 循环控制与状态反馈 (覆盖模式)
-  // ==========================================
-  
   // 存放传给 Corrector 让其修正的错误信息详情
   validationErrors: Annotation<string[]>({
     reducer: (x, y) => y,
