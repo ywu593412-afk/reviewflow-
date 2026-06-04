@@ -1,3 +1,6 @@
+export async function verifierNode(state: GraphStateType): Promise<Partial<GraphStateType>> {
+  console.log(">>> [Verifier] 被调用了！当前待校验数量:", state.pendingVerifyComments?.length);
+  // ... 原有逻辑
 import { GraphStateType } from "../state.js";
 import { validateCoordinatesNode } from "../../verifier/commentVerifier.js";
 
