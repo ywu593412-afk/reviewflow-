@@ -1,10 +1,20 @@
-// src/index.ts
+import { parseDiff } from "./verifier/diffParser.js";
+import { validateCoordinatesNode } from "./verifier/commentVerifier.js";
+import { graph } from "./graph/builder.js"; 
 
-// 1. 导出多智能体网络核心入口
-export { graph } from "./graph/builder.js";
+export { parseDiff as parseDiffToValidLines, validateCoordinatesNode, graph };
 
-// 2. 导出基准测试需要的 Diff 解析函数
-export { parseDiff as parseDiffToValidLines } from "./verifier/diffParser.js";
-
-// 3. 导出具备高内聚校验与防御能力的核心节点
-export { validateCoordinatesNode } from "./verifier/commentVerifier.js";
+// === 换成这个极度危险的测试函数 ===
+export function testBug() {
+  // 1. 严重的安全漏洞：密码硬编码
+  const dbPassword = "super_secret_admin_password_123!";
+  
+  // 2. 绝对会被 AI 拦截的危险代码执行
+  eval("console.log('User password is: " + dbPassword + "')");
+  
+  // 3. 致命的业务逻辑漏洞：死循环
+  let count = 0;
+  while (count < 10) {
+    console.log("这段代码会永远卡死，因为 count 永远不自增");
+  }
+}
